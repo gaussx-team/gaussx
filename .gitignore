@@ -1,0 +1,33 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Node
+node_modules/
+.next/
+dist/
+build/
+coverage/
+*.log
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# env (절대 커밋 금지)
+.env
+.env.*
+!.env.example
+
+# 3DGS / 대용량 결과물 (공유 드라이브에 둔다)
+*.ply
+*.splat
+*.ksplat
+*.mp4
+*.mov
+3dgs/data/
+3dgs/output/
