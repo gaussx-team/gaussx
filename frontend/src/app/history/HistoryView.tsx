@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { usePolling } from "@/hooks/usePolling";
-import { CATEGORY_LABEL, CATEGORY_STYLE, EVENT_LABEL, fmtDay, fmtTime, localDayKey, shiftDay } from "@/lib/format";
+import { CATEGORY_LABEL, CATEGORY_STYLE, EVENT_LABEL, fmtDay, fmtFull, fmtTime, localDayKey, shiftDay } from "@/lib/format";
 import type { EventCategory, HistoryEvent, HistoryResponse } from "@/lib/types";
 
 const CATS: EventCategory[] = ["work", "check", "alert", "robot", "tag"];
@@ -165,7 +165,7 @@ function groupByDay(events: HistoryEvent[]) {
 function downloadCsv(events: HistoryEvent[], label: string) {
   const esc = (v: unknown) => `"${String(v ?? "").replaceAll('"', '""')}"`;
   const head = ["시각", "분류", "구분", "작업", "구역", "누가", "내용"];
-  const rows = events.map((e) => [new Date(e.at).toLocaleString("ko-KR"), CATEGORY_LABEL[e.category], EVENT_LABEL[e.type] ?? e.type, e.workCode, e.zoneId, e.actor, e.text]);
+  const rows = events.map((e) => [fmtFull(e.at), CATEGORY_LABEL[e.category], EVENT_LABEL[e.type] ?? e.type, e.workCode, e.zoneId, e.actor, e.text]);
   const csv = "﻿" + [head, ...rows].map((r) => r.map(esc).join(",")).join("\n");
   const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
   const a = document.createElement("a");

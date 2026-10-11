@@ -1,8 +1,11 @@
 import type { AlertSource, CheckItem, EventCategory, Needs, RobotMode, RobotView, Work, WorkStatus } from "./types";
 
+export const TZ = "Asia/Seoul";
+
 export const fmtTime = (iso?: string | null) =>
   iso
     ? new Date(iso).toLocaleTimeString("ko-KR", {
+        timeZone: TZ,
         hour: "2-digit",
         minute: "2-digit",
         second: "2-digit",
@@ -91,28 +94,40 @@ export const CATEGORY_STYLE: Record<EventCategory, string> = {
 
 const WEEK = ["일", "월", "화", "수", "목", "금", "토"];
 
-// "10월 11일 (일)"
+// 화면의 날짜·시간은 기기 시간대와 상관없이 한국 시간(KST)으로 고정한다 (서버 dayKey 와 같은 기준)
+const KST_MS = 9 * 3_600_000;
+// KST 벽시계 값을 UTC 필드로 읽을 수 있게 옮긴 Date
+const kstParts = (iso: string) => new Date(new Date(iso).getTime() + KST_MS);
+const pad = (n: number) => String(n).padStart(2, "0");
+
+// "10월 11일 (일)" — YYYY-MM-DD 키도 받는다
 export const fmtDay = (isoOrKey: string) => {
-  const d = new Date(isoOrKey.length === 10 ? `${isoOrKey}T00:00:00` : isoOrKey);
-  return `${d.getMonth() + 1}월 ${d.getDate()}일 (${WEEK[d.getDay()]})`;
+  const d = isoOrKey.length === 10 ? new Date(`${isoOrKey}T00:00:00Z`) : kstParts(isoOrKey);
+  return `${d.getUTCMonth() + 1}월 ${d.getUTCDate()}일 (${WEEK[d.getUTCDay()]})`;
 };
 
 // "10/11 14:05"
 export const fmtShort = (iso?: string | null) => {
   if (!iso) return "-";
-  const d = new Date(iso);
-  return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  const d = kstParts(iso);
+  return `${d.getUTCMonth() + 1}/${d.getUTCDate()} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
 };
 
-// 브라우저 로컬 날짜 키 YYYY-MM-DD
-export const localDayKey = (iso: string) => new Date(iso).toLocaleDateString("sv-SE");
+// KST 날짜 키 YYYY-MM-DD
+export const localDayKey = (iso: string) => kstParts(iso).toISOString().slice(0, 10);
 
 // YYYY-MM-DD 에서 n일 이동
 export const shiftDay = (key: string, n: number) => {
-  const d = new Date(`${key}T00:00:00`);
-  d.setDate(d.getDate() + n);
-  return d.toLocaleDateString("sv-SE");
+  const d = new Date(`${key}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
 };
+
+// "14:30" (KST 오늘) → ISO
+export const kstTodayAt = (hhmm: string) => new Date(`${localDayKey(new Date().toISOString())}T${hhmm}:00+09:00`).toISOString();
+
+// CSV 등 전체 표기 "2026-10-11 14:05:09"
+export const fmtFull = (iso: string) => kstParts(iso).toISOString().slice(0, 19).replace("T", " ");
 
 export const secondsBetween = (from: string, to: string) => Math.round((new Date(to).getTime() - new Date(from).getTime()) / 1000);
 
