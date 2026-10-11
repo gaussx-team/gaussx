@@ -1,6 +1,7 @@
 import type { CheckItem, EquipmentState } from "./types";
 
-// 위험 유형 템플릿: 고르면 확인 항목이 자동으로 채워진다 (DB 테이블 없이 화면 파일로 관리)
+// 위험 유형(작업허가 종류) 템플릿: 고르면 확인 항목이 자동으로 채워진다 (DB 테이블 없이 화면 파일로 관리)
+// 수치 출처: 산업안전보건기준에 관한 규칙(밀폐공간 적정공기), 안전작업허가 실무 기준 — 실제 적용 전 원문·사업장 기준으로 재확인할 것
 export type TemplateCheck = Omit<CheckItem, "id" | "tagId" | "seq">;
 
 export interface Template {
@@ -11,10 +12,11 @@ export interface Template {
 
 export const TEMPLATES: Template[] = [
   {
-    id: "chemical_pipe",
-    name: "화학물질 배관",
+    id: "line_open",
+    name: "화학물질 배관·라인 개방",
     checks: [
       { item: "배관 잔압 0 확인", needs: "value", unit: "bar", required: true, min: 0, max: 0 },
+      { item: "배관 내 잔류물 배출 확인", needs: "none", required: true },
       { item: "밸브 잠금·표지 부착", needs: "photo", required: true },
       { item: "내산 보호구 착용", needs: "none", required: true },
       { item: "세안·샤워 설비 위치 확인", needs: "none", required: false },
@@ -22,21 +24,34 @@ export const TEMPLATES: Template[] = [
   },
   {
     id: "confined_space",
-    name: "밀폐공간",
+    name: "밀폐공간 출입",
     checks: [
-      // 적정공기 기준은 산업안전보건기준에 관한 규칙 원문으로 재확인할 것
-      { item: "산소 농도 측정", needs: "value", unit: "%", required: true, min: 18, max: 23.5 },
+      // 적정공기: 산소 18% 이상 23.5% 미만, 탄산가스 1.5% 미만, 일산화탄소 30ppm 미만, 황화수소 10ppm 미만
+      { item: "산소 농도 측정", needs: "value", unit: "%", required: true, min: 18, max: 23.5, maxExclusive: true },
+      { item: "탄산가스 농도 측정", needs: "value", unit: "%", required: true, min: 0, max: 1.5, maxExclusive: true },
+      { item: "일산화탄소 농도 측정", needs: "value", unit: "ppm", required: true, min: 0, max: 30, maxExclusive: true },
+      { item: "황화수소 농도 측정", needs: "value", unit: "ppm", required: true, min: 0, max: 10, maxExclusive: true },
       { item: "환기 장치 가동", needs: "none", required: true },
       { item: "감시인 배치", needs: "none", required: true },
     ],
   },
   {
-    id: "residue_tank",
-    name: "잔류물 탱크·화기",
+    id: "hot_work",
+    name: "화기작업 (용접·용단)",
     checks: [
-      { item: "잔류물 제거·세정 완료", needs: "photo", required: true },
-      { item: "가연성 가스 농도 측정", needs: "value", unit: "%LEL", required: true, min: 0, max: 10 },
+      { item: "가연성 가스 농도 측정", needs: "value", unit: "%LEL", required: true, min: 0, max: 10, maxExclusive: true },
+      { item: "주변 가연물 제거 (반경 10m)", needs: "photo", required: true },
+      { item: "방화포 설치", needs: "none", required: true },
       { item: "소화기 비치", needs: "none", required: true },
+    ],
+  },
+  {
+    id: "loto",
+    name: "정전·전기작업 (잠금·표지)",
+    checks: [
+      { item: "차단기 개방·잠금 표지", needs: "photo", required: true },
+      { item: "검전기 무전압 확인", needs: "value", unit: "V", required: true, min: 0, max: 0 },
+      { item: "절연 장갑 착용", needs: "none", required: true },
     ],
   },
   {

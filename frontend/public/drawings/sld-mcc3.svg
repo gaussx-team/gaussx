@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 560" font-family="Malgun Gothic, Apple SD Gothic Neo, sans-serif">
+  <!-- 3구역 전기 단선결선도(가상) -->
+  <rect width="900" height="560" fill="#fff"/>
+  <rect x="6" y="6" width="888" height="548" fill="none" stroke="#111827" stroke-width="3"/>
+  <text x="24" y="40" font-size="20" font-weight="700">3구역 MCC-3 단선결선도</text>
+  <!-- 수전 -->
+  <line x1="450" y1="60" x2="450" y2="110" stroke="#111827" stroke-width="3"/>
+  <text x="462" y="80" font-size="12">AC 380V 3φ 수전</text>
+  <!-- 주차단기 -->
+  <rect x="430" y="110" width="40" height="40" fill="#fff" stroke="#111827" stroke-width="3"/>
+  <line x1="436" y1="144" x2="464" y2="116" stroke="#111827" stroke-width="3"/>
+  <text x="480" y="136" font-size="13" font-weight="700" fill="#b91c1c">MCCB-0 주차단기 (구조 시 먼저 OFF)</text>
+  <line x1="450" y1="150" x2="450" y2="190" stroke="#111827" stroke-width="3"/>
+  <!-- 모선 -->
+  <rect x="120" y="190" width="660" height="14" fill="#3730a3"/>
+  <text x="120" y="182" font-size="13" fill="#3730a3" font-weight="700">MCC-3 BUS 380V</text>
+  <!-- 피더 3개 -->
+  <g font-size="12">
+    <g transform="translate(220 204)">
+      <line x1="0" y1="0" x2="0" y2="50" stroke="#111827" stroke-width="3"/>
+      <rect x="-18" y="50" width="36" height="36" fill="#fff" stroke="#111827" stroke-width="2.5"/><line x1="-12" y1="80" x2="12" y2="56" stroke="#111827" stroke-width="2.5"/>
+      <text x="26" y="72">MCCB-1 50A</text>
+      <line x1="0" y1="86" x2="0" y2="150" stroke="#111827" stroke-width="3"/>
+      <circle cx="0" cy="176" r="26" fill="#fff" stroke="#111827" stroke-width="3"/><text x="0" y="181" text-anchor="middle" font-weight="700">M</text>
+      <text x="0" y="226" text-anchor="middle" font-weight="700">PU-07 펌프 15kW</text>
+      <text x="0" y="244" text-anchor="middle" fill="#64748b">2구역 · 잠금 대상</text>
+    </g>
+    <g transform="translate(450 204)">
+      <line x1="0" y1="0" x2="0" y2="50" stroke="#111827" stroke-width="3"/>
+      <rect x="-18" y="50" width="36" height="36" fill="#fff" stroke="#111827" stroke-width="2.5"/><line x1="-12" y1="80" x2="12" y2="56" stroke="#111827" stroke-width="2.5"/>
+      <text x="26" y="72">MCCB-2 20A</text>
+      <line x1="0" y1="86" x2="0" y2="150" stroke="#111827" stroke-width="3"/>
+      <circle cx="0" cy="176" r="26" fill="#fff" stroke="#111827" stroke-width="3"/><text x="0" y="181" text-anchor="middle" font-weight="700">M</text>
+      <text x="0" y="226" text-anchor="middle" font-weight="700">환기팬 F-2 3.7kW</text>
+    </g>
+    <g transform="translate(680 204)">
+      <line x1="0" y1="0" x2="0" y2="50" stroke="#111827" stroke-width="3"/>
+      <rect x="-18" y="50" width="36" height="36" fill="#fff" stroke="#111827" stroke-width="2.5"/><line x1="-12" y1="80" x2="12" y2="56" stroke="#111827" stroke-width="2.5"/>
+      <text x="26" y="72">MCCB-3 30A</text>
+      <line x1="0" y1="86" x2="0" y2="150" stroke="#111827" stroke-width="3"/>
+      <rect x="-30" y="150" width="60" height="44" fill="#fff" stroke="#111827" stroke-width="2.5"/><text x="0" y="177" text-anchor="middle">조명·콘센트</text>
+    </g>
+  </g>
+  <g transform="translate(650 470)">
+    <rect width="230" height="72" fill="#fff" stroke="#111827" stroke-width="2"/>
+    <text x="10" y="20" font-size="12" font-weight="700">GaussX 데모 현장 (가상)</text>
+    <text x="10" y="38" font-size="12">단선결선도 · MCC-3</text>
+    <text x="10" y="56" font-size="12">DWG E-301 · REV.A</text>
+  </g>
+</svg>

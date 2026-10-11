@@ -6,6 +6,7 @@ const S = 100;
 
 const FILL = {
   alert: { fill: "#fee2e2", stroke: "#dc2626" },
+  warning: { fill: "#fef3c7", stroke: "#d97706" },
   working: { fill: "#dbeafe", stroke: "#2563eb" },
   planned: { fill: "#eff6ff", stroke: "#93c5fd" },
   ended: { fill: "#f1f5f9", stroke: "#94a3b8" },
@@ -41,7 +42,7 @@ export function ZoneMap({ zones, tags = [], robot, path, highlightZoneId, pick, 
     >
       {zones.map((z) => {
         const v = z as ZoneView;
-        const key = v.alert ? "alert" : (v.workState ?? "none");
+        const key = v.alert ? "alert" : v.warning ? "warning" : (v.workState ?? "none");
         const c = FILL[key];
         const [x, y, w, h] = z.rect;
         const hl = highlightZoneId === z.id;

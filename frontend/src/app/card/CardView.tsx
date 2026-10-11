@@ -5,18 +5,17 @@ import { HoldButton } from "@/components/HoldButton";
 import { useFallDetection } from "@/hooks/useFallDetection";
 import { usePolling } from "@/hooks/usePolling";
 import { api } from "@/lib/api";
-import { fmtTime, WORK_STATUS_LABEL } from "@/lib/format";
+import { drawingMatchesTag, fmtRange, fmtTime, WORK_STATUS_LABEL, workWarnings } from "@/lib/format";
 import { EQUIPMENT_STATE_LABEL } from "@/lib/templates";
-import type { CardResponse, CheckItem, Confirmation, Tag } from "@/lib/types";
+import type { Alert, CardResponse, CheckItem, Confirmation, Drawing, Tag, Work } from "@/lib/types";
 
 export function CardView() {
   const sp = useSearchParams();
   const workParam = sp.get("work");
   const preview = sp.get("preview") === "1"; // 관리자 미리보기: 읽기 전용, 기록 남기지 않음
-  const path = workParam ? `/card?work=${encodeURIComponent(workParam)}` : `/card?device=${encodeURIComponent(sp.get("device") ?? "helmet-01")}`;
+  const path = workParam ? `/card?work=${encodeURIComponent(workParam)}` : `/card?device=${encodeURIComponent(sp.get("device") ?? "device-01")}`;
   const { data, error, refresh } = usePolling<CardResponse>(path, 1000);
-  const device = data?.work?.deviceId ?? sp.get("device") ?? "helmet-01";
-  const [autoDetect, setAutoDetect] = useState(true);
+  const device = data?.work?.deviceId ?? sp.get("device") ?? "device-01";
   const opened = useRef<number | null>(null);
 
   const work = data?.work ?? null;
@@ -28,17 +27,6 @@ export function CardView() {
       api.post("/card/opened", { workId: work.id }).then(refresh).catch(() => {});
     }
   }, [work, refresh, preview]);
-
-  const raise = useCallback(
-    async (source: "sos_button" | "accel") => {
-      await api.post("/event", { source, deviceId: device }).catch(() => {});
-      refresh();
-    },
-    [device, refresh],
-  );
-
-  const working = !preview && work?.status === "confirmed" && !data?.alert;
-  const fall = useFallDetection(working && autoDetect, () => raise("accel"));
 
   if (preview && data?.work) return <Checklist data={data} device={device} onChange={refresh} readOnly />;
 
@@ -57,6 +45,18 @@ export function CardView() {
       </Shell>
     );
 
+  if (work.status === "cancelled")
+    return (
+      <Shell device={device}>
+        <div className="card py-10 text-center">
+          <div className="text-4xl">✕</div>
+          <p className="mt-3 font-bold">{work.code} 작업이 취소됐어요</p>
+          {work.cancelReason && <p className="mt-1 text-sm text-slate-600">사유: {work.cancelReason}</p>}
+          <p className="mt-1 text-sm text-slate-500">담당자가 새 작업을 보내면 여기에 바로 떠요.</p>
+        </div>
+      </Shell>
+    );
+
   if (work.status !== "confirmed") return <Checklist data={data} device={device} onChange={refresh} />;
 
   return (
@@ -68,14 +68,46 @@ export function CardView() {
         <div className="text-lg font-bold">{work.title}</div>
         <div className="text-sm text-emerald-700">작업 중 · {fmtTime(work.confirmedAt)} 시작</div>
       </div>
+      <PermitNotice work={work} now={data.now} />
       {data.tags.map((t) => (
         <div key={t.id} className="rounded-xl border-l-4 border-red-500 bg-white p-3 text-sm shadow-sm">
           <span className="font-semibold">{t.title}</span> — {t.hazard}
+          <DrawingLinks tagTitle={t.title} drawings={data.drawings} />
+          {t.status === "superseded" && <div className="mt-1 text-xs text-amber-700">작업 전송 후 이 태그가 수정됐어요 · 담당자에게 최신 내용 확인</div>}
         </div>
       ))}
 
-      <HoldButton onDone={() => raise("sos_button")}>SOS · 3초 길게 누르기</HoldButton>
+      <SafetyPanel device={device} onRaised={refresh} />
 
+      <button
+        className="btn-ghost w-full py-3"
+        onClick={async () => {
+          if (!window.confirm("작업을 종료할까요?")) return;
+          await api.post("/work/end", { workId: work.id });
+          refresh();
+        }}
+      >
+        작업 종료
+      </button>
+    </Shell>
+  );
+}
+
+// 작업 중 안전 패널: SOS(3초 길게) + 쓰러짐 자동 감지. 카드 화면과 '내 작업' 목록 둘 다에서 켜져 있어야 한다
+export function SafetyPanel({ device, onRaised }: { device: string; onRaised: () => void }) {
+  const [autoDetect, setAutoDetect] = useState(true);
+  const raise = useCallback(
+    async (source: "sos_button" | "accel") => {
+      await api.post("/event", { source, deviceId: device }).catch(() => {});
+      onRaised();
+    },
+    [device, onRaised],
+  );
+  const fall = useFallDetection(autoDetect, () => raise("accel"));
+
+  return (
+    <>
+      <HoldButton onDone={() => raise("sos_button")}>SOS · 3초 길게 누르기</HoldButton>
       <div className="card space-y-2 text-sm">
         <label className="flex items-center gap-2 font-semibold">
           <input
@@ -92,37 +124,40 @@ export function CardView() {
         <p className="text-xs text-slate-500">
           {fall.status === "on" && "감지 중 — 넘어지면 바로 관제와 로봇에 알려요."}
           {fall.status === "off" && "꺼져 있어요."}
+          {fall.status === "needs_permission" && "아직 감지하지 않아요. 아래 버튼을 눌러 센서 권한을 허용해 주세요."}
           {fall.status === "denied" && "센서 권한이 거부됐어요. 브라우저 설정에서 허용해 주세요."}
           {fall.status === "unsupported" && "이 브라우저(또는 http 주소)에서는 센서를 쓸 수 없어요. https 로 열어 주세요."}
         </p>
-        {fall.status !== "on" && (
-          <button className="btn-ghost w-full" onClick={async () => (await fall.requestPermission()) && setAutoDetect(true)}>
-            센서 권한 요청 (iPhone)
+        {(fall.status === "needs_permission" || fall.status === "denied") && (
+          <button className="btn-primary w-full" onClick={async () => (await fall.requestPermission()) && setAutoDetect(true)}>
+            센서 권한 허용
           </button>
         )}
       </div>
-
-      <button
-        className="btn-ghost w-full py-3"
-        onClick={async () => {
-          if (!window.confirm("작업을 종료할까요?")) return;
-          await api.post("/work/end", { workId: work.id });
-          refresh();
-        }}
-      >
-        작업 종료
-      </button>
-    </Shell>
+    </>
   );
 }
 
 // 휴대폰: 전체 화면 / 넓은 화면(웹): 가운데 휴대폰 틀 안에 같은 화면 + 옆에 안내
-function Shell({ device, preview = false, children }: { device: string; preview?: boolean; children: React.ReactNode }) {
+export function Shell({ device, preview = false, back = true, children }: { device: string; preview?: boolean; back?: boolean; children: React.ReactNode }) {
   const body = (
     <div className="mx-auto min-h-full max-w-md space-y-3 p-4 pt-6">
       <div className="flex items-center justify-between text-xs text-slate-500">
-        <span className="font-bold text-slate-900">GaussX 작업 카드</span>
-        <span className="font-mono">{device}</span>
+        {back && !preview ? (
+          <a href={`/card?device=${device}`} className="font-semibold text-slate-700">
+            ← 내 작업
+          </a>
+        ) : (
+          <span className="font-bold text-slate-900">GaussX 작업 카드</span>
+        )}
+        <span className="flex items-center gap-2">
+          <span className="font-mono">{device}</span>
+          {!preview && (
+            <a href="/card?choose=1" className="underline">
+              기기 변경
+            </a>
+          )}
+        </span>
       </div>
       {children}
     </div>
@@ -142,6 +177,50 @@ function Shell({ device, preview = false, children }: { device: string; preview?
         </a>
       </div>
       <div className="lg:h-[760px] lg:w-[380px] lg:shrink-0 lg:overflow-y-auto lg:rounded-[44px] lg:border-[10px] lg:border-slate-900 lg:bg-slate-50 lg:shadow-2xl">{body}</div>
+    </div>
+  );
+}
+
+// 이 설비가 나오는 도면 바로가기 (같은 탭에서 열고 '돌아가기'로 복귀)
+function DrawingLinks({ tagTitle, drawings }: { tagTitle: string; drawings: Drawing[] }) {
+  const hits = drawings.map((d) => ({ d, code: drawingMatchesTag(d, tagTitle) })).filter((x) => x.code && !x.d.cad);
+  if (!hits.length) return null;
+  return (
+    <div className="mt-2 flex flex-wrap gap-1">
+      {hits.map(({ d, code }) => (
+        <a key={d.id} href={`/drawing?id=${d.id}&eq=${encodeURIComponent(code!)}`} className="rounded-full border border-slate-300 bg-white px-2 py-0.5 text-xs text-slate-700">
+          📐 {d.title}
+        </a>
+      ))}
+    </div>
+  );
+}
+
+// 허가 시간이 지났을 때 (물적 정보만 전달: 시간이 지났다는 사실)
+function PermitNotice({ work, now }: { work: Work; now: string }) {
+  const permit = workWarnings(work, now).find((x) => x.kind === "permit");
+  if (!permit) return null;
+  return <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">⏰ 작업 허가 시간이 지났어요 ({permit.text.replace("허가 시간 초과 ", "")} 초과) · 담당자에게 연장 여부를 확인하세요</div>;
+}
+
+// 측정 이상이 관제에 전달된 상태
+function AbnormalNotice({ list }: { list: Alert[] }) {
+  if (!list.length) return null;
+  return (
+    <div className="space-y-2">
+      {list.map((a) => (
+        <div key={a.id} className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+          <div className="font-bold">측정 이상 · 관제에 전달됐어요</div>
+          <div>
+            {a.reading?.tagTitle} · {a.reading?.item} <b>{a.reading?.value}{a.reading?.unit}</b> (정상 {a.reading?.range})
+          </div>
+          {a.reading?.recheckedAt ? (
+            <div className="text-xs text-emerald-700">재측정 {a.reading.recheckedValue}{a.reading.unit} 정상 · {fmtTime(a.reading.recheckedAt)}</div>
+          ) : (
+            <div className="text-xs">다시 측정해 정상이면 진행할 수 있어요.</div>
+          )}
+        </div>
+      ))}
     </div>
   );
 }
@@ -181,9 +260,11 @@ function Checklist({ data, device, onChange, readOnly = false }: { data: CardRes
         </div>
         {work.checkedInAt && <div className="text-xs text-emerald-700">체크인 {fmtTime(work.checkedInAt)}</div>}
       </div>
+      <PermitNotice work={work} now={data.now} />
+      <AbnormalNotice list={data.abnormal} />
 
       {data.tags.map((t) => (
-        <TagCard key={t.id} tag={t} workId={work.id} done={done} onChange={onChange} readOnly={readOnly} />
+        <TagCard key={t.id} tag={t} workId={work.id} done={done} onChange={onChange} readOnly={readOnly} drawings={data.drawings} />
       ))}
 
       {!readOnly && <div className="sticky bottom-0 space-y-1 bg-slate-50 pb-2 pt-1">
@@ -196,12 +277,14 @@ function Checklist({ data, device, onChange, readOnly = false }: { data: CardRes
   );
 }
 
-function TagCard({ tag, workId, done, onChange, readOnly }: { tag: Tag; workId: number; done: Map<number, Confirmation>; onChange: () => void; readOnly: boolean }) {
+function TagCard({ tag, workId, done, onChange, readOnly, drawings }: { tag: Tag; workId: number; done: Map<number, Confirmation>; onChange: () => void; readOnly: boolean; drawings: Drawing[] }) {
   return (
     <div className="card space-y-3">
+      {tag.status === "superseded" && <div className="rounded-lg bg-amber-50 px-2 py-1 text-xs text-amber-800">작업 전송 후 이 태그가 수정됐어요 (지금 보는 건 v{tag.version}) · 담당자에게 최신 내용 확인</div>}
       <div>
         <div className="flex items-center gap-2">
           <span className="font-bold">{tag.title}</span>
+          <span className="text-xs text-slate-400">v{tag.version}</span>
           {tag.official ? (
             <span className="rounded bg-red-100 px-1.5 py-0.5 text-xs text-red-700">공식</span>
           ) : (
@@ -213,6 +296,7 @@ function TagCard({ tag, workId, done, onChange, readOnly }: { tag: Tag; workId: 
           {tag.substance && `${tag.substance} · `}
           {EQUIPMENT_STATE_LABEL[tag.equipmentState]}
         </p>
+        <DrawingLinks tagTitle={tag.title} drawings={drawings} />
       </div>
       <ul className="space-y-2">
         {tag.checkItems.map((c) => (
@@ -229,7 +313,7 @@ function CheckRow({ item, workId, done, onChange, readOnly }: { item: CheckItem;
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const range = item.needs === "value" && (item.min != null || item.max != null) ? `정상 ${item.min ?? "-"}~${item.max ?? "-"}${item.unit ?? ""}` : null;
+  const range = item.needs === "value" && (item.min != null || item.max != null) ? `정상 ${fmtRange(item)}` : null;
 
   const submit = async () => {
     if (!window.confirm("체크 후에는 수정할 수 없어요. 확인할까요?")) return;

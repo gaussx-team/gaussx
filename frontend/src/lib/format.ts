@@ -1,4 +1,4 @@
-import type { AlertSource, EventCategory, Needs, RobotMode, RobotView, WorkStatus } from "./types";
+import type { AlertSource, CheckItem, EventCategory, Needs, RobotMode, RobotView, Work, WorkStatus } from "./types";
 
 export const fmtTime = (iso?: string | null) =>
   iso
@@ -18,6 +18,7 @@ export const WORK_STATUS_LABEL: Record<WorkStatus, string> = {
   opened: "열람",
   confirmed: "작업 중",
   ended: "종료",
+  cancelled: "취소",
 };
 
 export const SOURCE_LABEL: Record<AlertSource, string> = {
@@ -25,6 +26,7 @@ export const SOURCE_LABEL: Record<AlertSource, string> = {
   accel: "자동 감지",
   operator: "관제 직접 출동",
   debug: "무대 트리거",
+  reading: "측정값",
 };
 
 export const NEEDS_LABEL: Record<Needs, string> = {
@@ -39,6 +41,11 @@ export const EVENT_LABEL: Record<string, string> = {
   "card.opened": "카드 열람",
   "work.checked_in": "체크인 (첫 확인)",
   "check.confirmed": "항목 확인",
+  "check.rejected": "측정 이상값",
+  "alert.abnormal": "측정 이상 알림",
+  "tag.revised": "태그 수정",
+  "tag.verified": "태그 승인",
+  "work.cancelled": "작업 취소",
   "work.confirmed": "확인 완료 · 작업 시작",
   "work.ended": "작업 종료",
   "alert.raised": "쓰러짐 알림",
@@ -49,6 +56,7 @@ export const EVENT_LABEL: Record<string, string> = {
   "dispatch.unavailable": "로봇 출동 불가",
   "dispatch.human": "사람 출동 지시",
   "robot.mode": "로봇 상태 변경",
+  "drawing.uploaded": "도면 등록",
   "session.reset": "리셋",
 };
 
@@ -126,3 +134,40 @@ export const ROBOT_MODE_LABEL: Record<RobotMode, string> = {
 export const robotSummary = (r: RobotView) =>
   r.state === "moving" ? `출동 중 · ${r.etaS}초 남음` : r.state === "arrived" ? "현장 도착" : r.mode === "ready" ? "출동 대기" : `${ROBOT_MODE_LABEL[r.mode]} · 출동 불가`;
 
+
+// 측정값 정상 범위 문구: "18% 이상 23.5% 미만", "0V", "10%LEL 미만"
+export const fmtRange = (c: Pick<CheckItem, "min" | "max" | "maxExclusive" | "unit">) => {
+  const u = c.unit ?? "";
+  if (c.min != null && c.max != null && c.min === c.max) return `${c.min}${u}`;
+  const parts: string[] = [];
+  if (c.min != null && !(c.min === 0 && c.max != null)) parts.push(`${c.min}${u} 이상`);
+  if (c.max != null) parts.push(`${c.max}${u} ${c.maxExclusive ? "미만" : "이하"}`);
+  return parts.join(" ");
+};
+
+// 정상 범위 안인지 (최소는 이상, 최대는 이하 또는 미만)
+export const inRange = (c: Pick<CheckItem, "min" | "max" | "maxExclusive">, v: number) =>
+  !(c.min != null && v < c.min) && !(c.max != null && (c.maxExclusive ? v >= c.max : v > c.max));
+
+// 작업 경고: 카드 미확인(전송 후 UNSEEN_MIN분), 허가 시간 초과. 서버 시각(now) 기준으로 화면이 계산
+export const UNSEEN_MIN = 5;
+export function workWarnings(w: Pick<Work, "status" | "publishedAt" | "permitEnd">, nowIso: string) {
+  if (w.status === "ended" || w.status === "cancelled") return [] as { kind: "unseen" | "permit"; text: string }[];
+  const out: { kind: "unseen" | "permit"; text: string }[] = [];
+  const unseen = minutesBetween(w.publishedAt, nowIso);
+  if (w.status === "published" && unseen >= UNSEEN_MIN) out.push({ kind: "unseen", text: `카드 미확인 ${unseen}분` });
+  if (w.permitEnd && nowIso > w.permitEnd) out.push({ kind: "permit", text: `허가 시간 초과 ${minutesBetween(w.permitEnd, nowIso)}분` });
+  return out;
+}
+
+export const isOpen = (w: Pick<Work, "status">) => w.status !== "ended" && w.status !== "cancelled";
+
+export const DRAWING_KIND_LABEL: Record<import("./types").DrawingKind, string> = {
+  floor: "평면도",
+  pid: "배관 계통도(P&ID)",
+  electrical: "전기 단선도",
+  other: "기타",
+};
+
+// 태그 제목에 들어 있는 설비 번호로 도면을 찾는다 (태그가 새 버전이 돼도 연결 유지)
+export const drawingMatchesTag = (d: { equipment: string[] }, tagTitle: string) => d.equipment.find((code) => tagTitle.includes(code)) ?? null;

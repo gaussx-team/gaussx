@@ -4,15 +4,17 @@ import { AppShell } from "@/components/AppShell";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ZoneMap } from "@/components/ZoneMap";
 import { usePolling } from "@/hooks/usePolling";
-import { EVENT_LABEL, fmtDay, fmtTime, minutesBetween, robotSummary, SOURCE_LABEL } from "@/lib/format";
+import { EVENT_LABEL, fmtDay, fmtTime, isOpen, robotSummary, SOURCE_LABEL, UNSEEN_MIN, workWarnings } from "@/lib/format";
 import type { StateResponse } from "@/lib/types";
 
 // 대시보드: 원청 담당자가 처음 들어와서 오늘 현장 상황을 한눈에 보는 화면
 export default function Dashboard() {
   const { data } = usePolling<StateResponse>("/state", 1000);
 
-  const active = data?.works.filter((w) => w.status !== "ended") ?? [];
-  const unseen = active.filter((w) => w.status === "published" && data && minutesBetween(w.publishedAt, data.now) >= 1);
+  const active = data?.works.filter(isOpen) ?? [];
+  // 경고가 있는 작업 (카드 미확인 · 허가 시간 초과)
+  const warned = data ? active.map((w) => ({ w, list: workWarnings(w, data.now) })).filter((x) => x.list.length) : [];
+  const unseen = warned.filter((x) => x.list.some((l) => l.kind === "unseen"));
   const working = active.filter((w) => w.status === "confirmed");
   const openAlerts = data?.alerts.filter((a) => a.status !== "resolved") ?? [];
   const robot = data ? robotSummary(data.robot) : "-";
@@ -21,8 +23,8 @@ export default function Dashboard() {
 
   const kpis = [
     { label: "진행 중 작업", value: active.length, sub: `작업 중 ${working.length}`, href: "/admin/works" },
-    { label: "카드 미확인", value: unseen.length, sub: "전송 후 1분 넘게 안 열림", href: "/admin/works", warn: unseen.length > 0 },
-    { label: "열린 알림", value: openAlerts.length, sub: "쓰러짐 · SOS", href: "/control", danger: openAlerts.length > 0 },
+    { label: "카드 미확인", value: unseen.length, sub: `전송 후 ${UNSEEN_MIN}분 넘게 안 열림`, href: "/admin/works", warn: unseen.length > 0 },
+    { label: "열린 알림", value: openAlerts.length, sub: "쓰러짐 · SOS · 측정 이상", href: "/control", danger: openAlerts.length > 0 },
     { label: "로봇", value: robot, sub: data ? `배터리 ${data.robot.battery}%` : "", href: "/robot", warn: !!data && !data.robot.available && data.robot.state !== "moving" },
   ];
 
@@ -38,13 +40,28 @@ export default function Dashboard() {
             위험 태그 등록
           </Link>
           <Link href="/admin/works/new" className="btn-primary">
-            + 새 작업 지시
+            + 새 작업 등록
           </Link>
         </>
       }
     >
       <div className="space-y-4">
-        {openAlerts.map((a) => (
+        {openAlerts.map((a) =>
+          a.type === "abnormal" ? (
+            <Link key={a.id} href="/control" className="flex items-center gap-3 rounded-xl border border-amber-300 bg-amber-100 p-4 text-amber-950">
+              <span className="text-2xl">!</span>
+              <span>
+                <span className="block font-bold">
+                  측정 이상 · {data?.zones.find((z) => z.id === a.zoneId)?.name} · {a.reading?.tagTitle}
+                </span>
+                <span className="text-xs">
+                  {a.reading?.item} {a.reading?.value}
+                  {a.reading?.unit} (정상 {a.reading?.range}) · {fmtTime(a.raisedAt)} · {a.reading?.recheckedAt ? "재측정 정상" : a.acknowledgedAt ? "관제 확인됨" : "관제 확인 대기"}
+                </span>
+              </span>
+              <span className="ml-auto text-sm font-semibold">관제 화면으로 →</span>
+            </Link>
+          ) : (
           <Link key={a.id} href="/control" className="flex items-center gap-3 rounded-xl bg-red-600 p-4 text-white shadow">
             <span className="text-2xl">!</span>
             <span>
@@ -57,7 +74,21 @@ export default function Dashboard() {
             </span>
             <span className="ml-auto text-sm font-semibold">관제 화면으로 →</span>
           </Link>
-        ))}
+          ),
+        )}
+
+        {warned.length > 0 && (
+          <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            <div className="mb-1 font-bold">확인이 필요한 작업</div>
+            {warned.map(({ w, list }) => (
+              <Link key={w.id} href={`/admin/works/${w.id}`} className="flex gap-2 hover:underline">
+                <span className="font-mono text-xs">{w.code}</span>
+                <span>{w.title}</span>
+                <span className="ml-auto font-semibold">{list.map((l) => l.text).join(" · ")}</span>
+              </Link>
+            ))}
+          </div>
+        )}
 
         {robotDown && (
           <Link href="/robot" className="flex items-center gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
