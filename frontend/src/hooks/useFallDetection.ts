@@ -10,7 +10,8 @@ const IMPACT = 2.5 * G;
 type PermissionFn = () => Promise<"granted" | "denied">;
 
 export function useFallDetection(enabled: boolean, onFall: () => void) {
-  const [status, setStatus] = useState<"off" | "on" | "denied" | "unsupported">("off");
+  const [status, setStatus] = useState<"off" | "on" | "needs_permission" | "denied" | "unsupported">("off");
+  const granted = useRef(false); // iPhone 은 버튼을 눌러 권한을 받아야 센서 값이 들어온다
   const freefallAt = useRef(0);
   const cooldownUntil = useRef(0);
   const cb = useRef(onFall);
@@ -31,6 +32,8 @@ export function useFallDetection(enabled: boolean, onFall: () => void) {
         return false;
       }
     }
+    granted.current = true;
+    setStatus("on");
     return true;
   }, []);
 
@@ -49,7 +52,10 @@ export function useFallDetection(enabled: boolean, onFall: () => void) {
       }
     };
     window.addEventListener("devicemotion", onMotion);
-    const id = setTimeout(() => setStatus("on"), 0);
+    // 실제로 센서를 받을 수 있는 상태인지 정직하게 표시 (http 주소 / iPhone 권한 전 → '감지 중'이 아님)
+    const supported = "DeviceMotionEvent" in window && window.isSecureContext;
+    const needsPermission = supported && !!(DeviceMotionEvent as unknown as { requestPermission?: PermissionFn }).requestPermission && !granted.current;
+    const id = setTimeout(() => setStatus(!supported ? "unsupported" : needsPermission ? "needs_permission" : "on"), 0);
     return () => {
       clearTimeout(id);
       window.removeEventListener("devicemotion", onMotion);

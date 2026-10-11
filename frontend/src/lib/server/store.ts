@@ -7,12 +7,16 @@ import type {
   CheckItem,
   Confirmation,
   Dispatch,
+  Drawing,
+  DrawingsResponse,
   EquipmentState,
   EventLog,
   RobotMode,
   RobotView,
   StateResponse,
   Tag,
+  TagsResponse,
+  InboxResponse,
   Work,
   EventCategory,
   HistoryEvent,
@@ -21,7 +25,7 @@ import type {
   Zone,
   ZoneView,
 } from "../types";
-import { eventCategory } from "../format";
+import { drawingMatchesTag, eventCategory, fmtRange, inRange, isOpen } from "../format";
 
 export class ApiError extends Error {
   constructor(
@@ -33,7 +37,7 @@ export class ApiError extends Error {
 }
 
 // 저장소 모양이 바뀌면 올린다. dev 서버를 켠 채로 코드를 바꿔도 예전 모양 데이터를 쓰지 않게 다시 만든다
-const STORE_VERSION = 6;
+const STORE_VERSION = 11;
 
 interface Store {
   version: number;
@@ -45,10 +49,12 @@ interface Store {
   dispatches: Dispatch[];
   events: EventLog[];
   robot: { homeX: number; homeY: number; x: number; y: number; mode: RobotMode; battery: number };
-  seq: { tag: number; check: number; work: number; confirm: number; alert: number; dispatch: number; event: number };
+  drawings: Drawing[];
+  files: Record<number, { mime: string; data: Buffer; fileName: string }>; // 업로드한 도면 파일 (목업: 메모리)
+  seq: { tag: number; check: number; work: number; confirm: number; alert: number; dispatch: number; event: number; drawing: number };
 }
 
-const DEVICE = "helmet-01";
+const DEVICE = "device-01";
 const ROBOT_SPEED = 0.45; // m/s
 
 // 미리 계산한 출동 경로 (precomputed). 바닥 4×3m 기준
@@ -59,19 +65,19 @@ const PATHS: Record<string, [number, number][]> = {
 };
 
 const now = () => new Date().toISOString();
-// n일 전 h시 m분 (과거 이력 시드용, 서버 로컬 시간 기준)
-const daysAgo = (n: number, h: number, m = 0) => {
+// 날짜 계산은 서버 시간대와 상관없이 한국 시간(KST, UTC+9) 기준. 버셀 서버는 UTC라서 로컬 시간을 쓰면 9시간 어긋난다
+const KST_MS = 9 * 3600_000;
+// KST 날짜 키 YYYY-MM-DD
+const dayKey = (d: Date) => new Date(d.getTime() + KST_MS).toISOString().slice(0, 10);
+// KST 그날 0시
+const startOfDay = (key: string) => new Date(`${key}T00:00:00+09:00`);
+// n일 전 KST h시 m분 (과거 이력 시드용, m 이 60을 넘어도 됨)
+const daysAgo = (n: number, h: number, m = 0) => new Date(startOfDay(dayKey(new Date())).getTime() - n * 86_400_000 + (h * 60 + m) * 60_000).toISOString();
+// 지금 시각의 정시 + n시간
+const hourFloor = (plusH: number) => {
   const d = new Date();
-  d.setDate(d.getDate() - n);
-  d.setHours(h, m, 0, 0);
-  return d.toISOString();
-};
-// 서버 로컬 날짜 키 YYYY-MM-DD
-const dayKey = (d: Date) => d.toLocaleDateString("sv-SE");
-const startOfDay = (key: string) => new Date(`${key}T00:00:00`);
-const todayAt = (h: number, m = 0) => {
-  const d = new Date();
-  d.setHours(h, m, 0, 0);
+  d.setMinutes(0, 0, 0);
+  d.setHours(d.getHours() + plusH);
   return d.toISOString();
 };
 
@@ -90,13 +96,17 @@ function seed(): Store {
     dispatches: [],
     events: [],
     robot: { homeX: 3.3, homeY: 2.4, x: 3.3, y: 2.4, mode: "ready", battery: 82 },
-    seq: { tag: 0, check: 0, work: 0, confirm: 0, alert: 0, dispatch: 0, event: 0 },
+    drawings: [],
+    files: {},
+    seq: { tag: 0, check: 0, work: 0, confirm: 0, alert: 0, dispatch: 0, event: 0, drawing: 0 },
   };
-  const addTag = (t: Omit<Tag, "id" | "status" | "checkItems" | "createdAt">, checks: Omit<CheckItem, "id" | "tagId" | "seq">[]) => {
+  const addTag = (t: Omit<Tag, "id" | "status" | "checkItems" | "createdAt" | "version">, checks: Omit<CheckItem, "id" | "tagId" | "seq">[]) => {
     const id = ++s.seq.tag;
     s.tags.push({
       ...t,
       id,
+      version: 1,
+      replacesId: null,
       status: "active",
       createdAt: daysAgo(8, 9),
       checkItems: checks.map((c, i) => ({ ...c, id: ++s.seq.check, tagId: id, seq: i + 1 })),
@@ -105,7 +115,7 @@ function seed(): Store {
     return id;
   };
   const p203 = addTag(
-    { zoneId: "Z1", title: "배관 P-203", substance: "불산 55%", hazard: "피부 접촉 시 중증 화상 · 보호구 없이 접근 금지", emergencyNote: "구조 시 내산 보호구 착용 후 접근", equipmentState: "running", official: true, verifiedBy: "원청 안전팀", x: 1.2, y: 0.45 },
+    { zoneId: "Z1", title: "배관 P-203", substance: "불산 55%", hazard: "피부 접촉 시 중증 화상 · 통증이 늦게 나타날 수 있음", emergencyNote: "구조 시 내산 보호구 착용 후 접근", equipmentState: "running", official: true, verifiedBy: "원청 안전팀", x: 1.2, y: 0.45 },
     [
       { item: "배관 잔압 0 확인", needs: "value", unit: "bar", required: true, min: 0, max: 0 },
       { item: "밸브 잠금·표지 부착", needs: "photo", required: true },
@@ -114,11 +124,11 @@ function seed(): Store {
     ],
   );
   const v11 = addTag(
-    { zoneId: "Z1", title: "밸브 V-11", substance: "질소", hazard: "밀폐 공간 질식 — 산소 농도 측정 후 진입", emergencyNote: null, equipmentState: "valve_closed", official: true, verifiedBy: "원청 안전팀", x: 0.45, y: 1.1 },
-    [{ item: "산소 농도 측정", needs: "value", unit: "%", required: true, min: 18, max: 23.5 }],
+    { zoneId: "Z1", title: "질소 퍼지 밸브 V-11", substance: "질소", hazard: "질소 누출 시 산소 결핍 · 무색·무취라 감지 어려움", emergencyNote: null, equipmentState: "valve_closed", official: true, verifiedBy: "원청 안전팀", x: 0.45, y: 1.1 },
+    [{ item: "산소 농도 측정", needs: "value", unit: "%", required: true, min: 18, max: 23.5, maxExclusive: true }],
   );
   addTag(
-    { zoneId: "Z2", title: "탱크 T-02", substance: "황산 98%", hazard: "접촉 시 화상 · 하부 밸브 개방 금지", emergencyNote: null, equipmentState: "running", official: false, verifiedBy: null, x: 3.1, y: 0.6 },
+    { zoneId: "Z2", title: "탱크 T-02", substance: "황산 98%", hazard: "접촉 시 화상 · 물과 섞이면 격렬히 발열", emergencyNote: null, equipmentState: "running", official: false, verifiedBy: null, x: 3.1, y: 0.6 },
     [{ item: "내산 장갑 착용", needs: "photo", required: true }],
   );
   const t02 = s.tags[2].id;
@@ -133,7 +143,7 @@ function seed(): Store {
     { zoneId: "Z3", title: "분전반 MCC-3", substance: null, hazard: "감전 위험 · 차단·검전 후 작업", emergencyNote: "구조 시 주차단기 OFF 먼저", equipmentState: "running", official: true, verifiedBy: "원청 안전팀", x: 0.5, y: 2.0 },
     [
       { item: "차단기 OFF·잠금 표지", needs: "photo", required: true },
-      { item: "검전기 측정 (무전압)", needs: "value", unit: "V", required: true, min: 0, max: 0 },
+      { item: "검전기 무전압 확인", needs: "value", unit: "V", required: true, min: 0, max: 0 },
       { item: "절연 장갑 착용", needs: "none", required: true },
     ],
   );
@@ -144,6 +154,14 @@ function seed(): Store {
       { item: "지지대 상태 사진", needs: "photo", required: false },
     ],
   );
+  // ── 도면 (public/drawings 의 가상 도면 SVG) ──
+  const addDrawing = (d: Omit<Drawing, "id" | "uploadedAt" | "uploadedBy" | "cad" | "mime"> & { mime?: string; cad?: boolean }) =>
+    s.drawings.push({ mime: "image/svg+xml", cad: false, ...d, id: ++s.seq.drawing, uploadedAt: daysAgo(8, 10), uploadedBy: "원청 설비팀" });
+  addDrawing({ title: "데모 현장 평면도", kind: "floor", dwgNo: "A-101", revision: "REV.B", zoneIds: ["Z1", "Z2", "Z3"], equipment: ["P-203", "V-11", "T-02", "PU-07", "MCC-3", "F-2"], fileName: "A-101_평면도_REV.B.svg", url: "/drawings/floor-plan.svg", mapsToFloor: true, note: "태그 좌표와 같은 축척(4×3m)" });
+  addDrawing({ title: "1구역 HF 이송 라인 P&ID", kind: "pid", dwgNo: "P-201", revision: "REV.C", zoneIds: ["Z1"], equipment: ["P-203", "V-11"], fileName: "P-201_HF라인_PID_REV.C.svg", url: "/drawings/pid-z1.svg", mapsToFloor: false, note: "차단 밸브 XV-201, 압력계 PI-203, 드레인 위치 포함" });
+  addDrawing({ title: "MCC-3 단선결선도", kind: "electrical", dwgNo: "E-301", revision: "REV.A", zoneIds: ["Z3"], equipment: ["MCC-3", "PU-07", "F-2"], fileName: "E-301_MCC-3_단선도_REV.A.svg", url: "/drawings/sld-mcc3.svg", mapsToFloor: false, note: "주차단기 MCCB-0 · 피더별 차단기" });
+  addDrawing({ title: "MCC-3 단선결선도 (CAD 원본)", kind: "electrical", dwgNo: "E-301", revision: "REV.A", zoneIds: ["Z3"], equipment: ["MCC-3"], fileName: "E-301_MCC-3_단선도_REV.A.dwg", url: "/drawings/sld-mcc3.svg", mime: "application/acad", cad: true, mapsToFloor: false, note: "원본 DWG — 내려받아 CAD 프로그램으로 열기 (목업은 SVG로 대체)" });
+
   const item = (tagId: number, n: number) => s.tags.find((t) => t.id === tagId)!.checkItems[n];
 
   // ── 지난 작업 (일주일치 · 이력·날짜 필터 확인용) ──
@@ -185,28 +203,39 @@ function seed(): Store {
     log(s, "work.ended", "작업반장", `${code} 작업 종료`, { workId: id, at: w.endedAt! });
   };
   past({ day: 6, start: [9, 30], end: [11, 40], title: "MCC-3 분전반 정기 점검", zoneId: "Z3", deviceId: DEVICE, tagIds: [mcc3], checks: [{ tagId: mcc3, n: 0, photo: "breaker.jpg" }, { tagId: mcc3, n: 1, value: 0 }, { tagId: mcc3, n: 2 }] });
-  past({ day: 5, start: [13, 10], end: [17, 0], title: "P-203 배관 누설 점검", zoneId: "Z1", deviceId: "helmet-02", tagIds: [p203], checks: [{ tagId: p203, n: 0, value: 0 }, { tagId: p203, n: 1, photo: "lock.jpg" }, { tagId: p203, n: 2 }, { tagId: p203, n: 3 }] });
+  past({ day: 5, start: [13, 10], end: [17, 0], title: "P-203 배관 누설 점검", zoneId: "Z1", deviceId: "device-02", tagIds: [p203], checks: [{ tagId: p203, n: 0, value: 0 }, { tagId: p203, n: 1, photo: "lock.jpg" }, { tagId: p203, n: 2 }, { tagId: p203, n: 3 }] });
+  // 3일 전 오후: P-203 태그 수정(v2). 그 전에 보낸 작업(W-002)은 v1을 그대로 가리킨다
+  const p203v2 = reviseTagRow(s, p203, { emergencyNote: "구조자 내산 보호구 필요 · 피부 접촉 시 다량의 물로 세척 후 글루콘산칼슘 겔 (MSDS 확인)" }, daysAgo(3, 17), "원청 안전팀");
   past({ day: 4, start: [10, 20], end: [14, 30], title: "PU-07 펌프 씰 교체", zoneId: "Z2", deviceId: DEVICE, tagIds: [pu07, t02], checks: [{ tagId: pu07, n: 0, photo: "pump.jpg" }, { tagId: pu07, n: 1 }, { tagId: t02, n: 0, photo: "glove.jpg" }], alert: { at: [11, 45], source: "sos_button", resolution: "handled" } });
-  past({ day: 3, start: [15, 0], end: [16, 10], title: "F-2 환기팬 지지대 확인", zoneId: "Z3", deviceId: "helmet-02", tagIds: [f2], checks: [{ tagId: f2, n: 0 }, { tagId: f2, n: 1, photo: "fan.jpg" }] });
-  past({ day: 2, start: [10, 0], end: [15, 20], title: "V-11 밸브 패킹 교체", zoneId: "Z1", deviceId: "helmet-02", tagIds: [v11], checks: [{ tagId: v11, n: 0, value: 20.8 }] });
+  past({ day: 3, start: [15, 0], end: [16, 10], title: "F-2 환기팬 지지대 확인", zoneId: "Z3", deviceId: "device-02", tagIds: [f2], checks: [{ tagId: f2, n: 0 }, { tagId: f2, n: 1, photo: "fan.jpg" }] });
+  past({ day: 2, start: [10, 0], end: [15, 20], title: "V-11 밸브 패킹 교체", zoneId: "Z1", deviceId: "device-02", tagIds: [v11], checks: [{ tagId: v11, n: 0, value: 20.8 }] });
   past({ day: 1, start: [13, 0], end: [16, 0], title: "T-02 탱크 외부 점검", zoneId: "Z2", deviceId: DEVICE, tagIds: [t02], checks: [{ tagId: t02, n: 0, photo: "glove.jpg" }], alert: { at: [14, 10], source: "accel", resolution: "false_alarm" } });
 
-  // ── 오늘 이미 진행 중인 다른 작업 (헬멧 2번, 2구역) ──
+  // ── 오늘 이미 진행 중인 다른 작업 (단말 2번, 2구역) ──
   {
     const id = ++s.seq.work;
     const code = `W-${String(id).padStart(3, "0")}`;
     const ago = (min: number) => new Date(Date.now() - min * 60000).toISOString();
-    const w: Work = { id, code, title: "PU-07 펌프 진동 점검", zoneId: "Z2", deviceId: "helmet-02", status: "confirmed", tagIds: [pu07], permitName: `작업허가서_${code}.pdf`, permitStart: todayAt(8), permitEnd: todayAt(17), publishedAt: ago(50), openedAt: ago(47), checkedInAt: ago(45), confirmedAt: ago(40) };
+    const w: Work = { id, code, title: "PU-07 펌프 진동 점검", zoneId: "Z2", deviceId: "device-02", status: "confirmed", tagIds: [pu07], permitName: `작업허가서_${code}.pdf`, permitStart: ago(180), permitEnd: ago(10), publishedAt: ago(50), openedAt: ago(47), checkedInAt: ago(45), confirmedAt: ago(40) };
     s.works.push(w);
-    log(s, "work.published", "원청 담당자", `${code} 작업 전송 → helmet-02`, { workId: id, at: w.publishedAt });
-    log(s, "card.opened", "helmet-02", `${code} 카드 열람`, { workId: id, at: w.openedAt! });
+    log(s, "work.published", "원청 담당자", `${code} 작업 전송 → device-02`, { workId: id, at: w.publishedAt });
+    log(s, "card.opened", "device-02", `${code} 카드 열람`, { workId: id, at: w.openedAt! });
     log(s, "work.checked_in", "작업반장", `${code} 체크인 · Z2`, { workId: id, at: w.checkedInAt! });
     s.tags.find((t) => t.id === pu07)!.checkItems.forEach((it, i) => {
       const at = ago(45 - i * 2);
-      s.confirmations.push({ id: ++s.seq.confirm, workId: id, tagId: pu07, checkItemId: it.id, value: null, photo: it.needs === "photo" ? "pump.jpg" : null, deviceId: "helmet-02", confirmedAt: at });
+      s.confirmations.push({ id: ++s.seq.confirm, workId: id, tagId: pu07, checkItemId: it.id, value: null, photo: it.needs === "photo" ? "pump.jpg" : null, deviceId: "device-02", confirmedAt: at });
       log(s, "check.confirmed", "작업반장", `펌프 PU-07 · ${it.item}${it.needs === "photo" ? " · 사진" : ""}`, { workId: id, at });
     });
     log(s, "work.confirmed", "작업반장", `${code} 확인 완료 · 작업 시작`, { workId: id, at: w.confirmedAt! });
+  }
+
+  // ── 오늘 같은 단말로 먼저 받은 다른 작업 (작업 목록 · 카드 미확인 경고 확인용) ──
+  {
+    const id = ++s.seq.work;
+    const code = `W-${String(id).padStart(3, "0")}`;
+    const at = new Date(Date.now() - 20 * 60000).toISOString();
+    s.works.push({ id, code, title: "MCC-3 분전반 차단기 교체", zoneId: "Z3", deviceId: DEVICE, status: "published", tagIds: [mcc3], permitName: `작업허가서_${code}.pdf`, permitStart: hourFloor(0), permitEnd: hourFloor(8), publishedAt: at });
+    log(s, "work.published", "원청 담당자", `${code} 작업 전송 → ${DEVICE}`, { workId: id, at });
   }
 
   // ── 오늘 시연할 작업 ──
@@ -219,10 +248,11 @@ function seed(): Store {
     zoneId: "Z1",
     deviceId: DEVICE,
     status: "published",
-    tagIds: [p203, v11],
+    tagIds: [p203v2, v11],
     permitName: "작업허가서_예시.pdf",
-    permitStart: todayAt(9),
-    permitEnd: todayAt(18),
+    // 리셋한 시각 기준 정시부터 8시간 (리허설 시간이 언제든 허가 시간 안에 있도록)
+    permitStart: hourFloor(0),
+    permitEnd: hourFloor(8),
     publishedAt: now(),
   });
   log(s, "work.published", "원청 담당자", `${code} 작업 전송 → ${DEVICE}`, { workId: id });
@@ -240,6 +270,36 @@ function db(): Store {
 
 function log(s: Store, type: string, actor: string, text: string, ref: Partial<EventLog> = {}) {
   s.events.push({ seq: ++s.seq.event, at: now(), type, actor, text, ...ref });
+}
+
+// 태그 수정 = 새 버전 줄을 만들고 예전 줄은 superseded 로 보관. 이미 보낸 작업은 예전 id 를 계속 가리킨다
+type TagPatch = Partial<Pick<Tag, "zoneId" | "title" | "substance" | "hazard" | "emergencyNote" | "equipmentState" | "official" | "x" | "y">> & { checkItems?: Omit<CheckItem, "id" | "tagId" | "seq">[] };
+function reviseTagRow(s: Store, oldId: number, patch: TagPatch, at: string, actor: string) {
+  const old = s.tags.find((t) => t.id === oldId);
+  if (!old) throw new ApiError(404, "태그를 찾을 수 없어요");
+  if (old.status !== "active") throw new ApiError(400, "이미 수정된 예전 버전이에요. 최신 버전에서 수정해 주세요");
+  const id = ++s.seq.tag;
+  const { checkItems, ...rest } = patch;
+  const official = rest.official ?? old.official;
+  const next: Tag = {
+    ...old,
+    ...rest,
+    id,
+    version: old.version + 1,
+    replacesId: old.id,
+    status: "active",
+    supersededAt: null,
+    createdAt: at,
+    official,
+    verifiedBy: official ? (old.official ? old.verifiedBy : "원청 안전팀") : null,
+    verifiedAt: official ? (old.official ? old.verifiedAt : at) : null,
+    checkItems: (checkItems ?? old.checkItems).map((c, i) => ({ item: c.item, needs: c.needs, unit: c.unit, required: c.required, min: c.min, max: c.max, maxExclusive: c.maxExclusive, id: ++s.seq.check, tagId: id, seq: i + 1 })),
+  };
+  old.status = "superseded";
+  old.supersededAt = at;
+  s.tags.push(next);
+  log(s, "tag.revised", actor, `${next.title} v${next.version} 저장 (이전 v${old.version} 보관)`, { at });
+  return id;
 }
 
 // ── 로봇: 경과 시간으로 위치를 계산하고, 끝나면 도착 처리 ──────────
@@ -294,9 +354,14 @@ const MODE_REASON: Record<RobotMode, string> = { ready: "", charging: "충전 �
 
 
 // ── 조회 ────────────────────────────────────────────────────────
+// 단말의 '지금' 작업: 작업 중(confirmed)인 것이 우선, 없으면 가장 최근에 받은 열린 작업
 function activeWorkOf(s: Store, deviceId: string) {
-  return s.works.findLast((w) => w.deviceId === deviceId && w.status !== "ended") ?? null;
+  const open = s.works.filter((w) => w.deviceId === deviceId && isOpen(w));
+  return open.findLast((w) => w.status === "confirmed") ?? open.at(-1) ?? null;
 }
+
+// 작업에 묶인 태그를 작업에 넣은 순서대로
+const tagsOf = (s: Store, w: Work) => w.tagIds.map((id) => s.tags.find((t) => t.id === id)).filter((t): t is Tag => !!t);
 
 function progress(s: Store, w: Work) {
   const items = s.tags.filter((t) => w.tagIds.includes(t.id)).flatMap((t) => t.checkItems);
@@ -315,13 +380,14 @@ export function getState(): StateResponse {
   const openAlerts = s.alerts.filter((a) => a.status !== "resolved");
   const zones: ZoneView[] = s.zones.map((z) => {
     const works = s.works.filter((w) => w.zoneId === z.id);
-    const working = works.some((w) => w.checkedInAt && w.status !== "ended");
-    const planned = works.some((w) => !w.checkedInAt && w.status !== "ended");
-    const ended = works.length > 0 && works.every((w) => w.status === "ended");
+    const working = works.some((w) => w.checkedInAt && isOpen(w));
+    const planned = works.some((w) => !w.checkedInAt && isOpen(w));
+    const ended = works.length > 0 && works.every((w) => !isOpen(w));
     return {
       ...z,
       workState: working ? "working" : planned ? "planned" : ended ? "ended" : "none",
-      alert: openAlerts.some((a) => a.zoneId === z.id),
+      alert: openAlerts.some((a) => a.type === "fall" && a.zoneId === z.id),
+      warning: openAlerts.some((a) => a.type === "abnormal" && a.zoneId === z.id),
     };
   });
   return {
@@ -342,19 +408,98 @@ export function getCard(q: { deviceId?: string | null; workId?: number | null })
   const s = db();
   const robot = tick(s);
   const work = q.workId ? findWork(s, q.workId) : (s.works.findLast((w) => w.deviceId === q.deviceId) ?? null);
-  const alert = work ? (s.alerts.findLast((a) => a.workId === work.id && a.status !== "resolved") ?? s.alerts.findLast((a) => a.deviceId === work.deviceId && a.status !== "resolved") ?? null) : null;
+  const openFall = (a: Alert) => a.type === "fall" && a.status !== "resolved";
+  const alert = work ? (s.alerts.findLast((a) => openFall(a) && a.workId === work.id) ?? s.alerts.findLast((a) => openFall(a) && a.deviceId === work.deviceId) ?? null) : null;
+  const abnormal = work ? s.alerts.filter((a) => a.type === "abnormal" && a.status !== "resolved" && a.workId === work.id) : [];
   return {
     now: now(),
     work,
     zone: work ? (s.zones.find((z) => z.id === work.zoneId) ?? null) : null,
-    tags: work ? s.tags.filter((t) => work.tagIds.includes(t.id)) : [],
+    tags: work ? tagsOf(s, work) : [],
     confirmations: work ? s.confirmations.filter((c) => c.workId === work.id) : [],
     alert,
+    abnormal,
     robot,
+    drawings: work ? drawingsFor(s, work) : [],
   };
 }
 
-export const getTags = () => ({ zones: db().zones, tags: db().tags.filter((t) => t.status === "active") });
+// 작업의 구역이나 태그 설비 번호에 걸리는 도면
+function drawingsFor(s: Store, w: Work) {
+  const titles = tagsOf(s, w).map((t) => t.title);
+  return s.drawings.filter((d) => d.zoneIds.includes(w.zoneId) || titles.some((t) => drawingMatchesTag(d, t)));
+}
+
+export const getDrawings = (): DrawingsResponse => ({ zones: db().zones, drawings: db().drawings });
+
+export function getDrawingFile(id: number) {
+  const f = db().files[id];
+  if (!f) throw new ApiError(404, "도면 파일을 찾을 수 없어요");
+  return f;
+}
+
+// 목업은 파일을 메모리에 둔다 (버셀 요청 크기 제한 때문에 3MB까지). 백엔드가 생기면 파일 저장소(S3 등)로
+const MAX_DRAWING = 3 * 1024 * 1024;
+const CAD_EXT = /\.(dwg|dxf|dgn)$/i;
+export function createDrawing(input: { title: string; kind: Drawing["kind"]; dwgNo?: string; revision?: string; zoneIds: string[]; equipment: string[]; fileName: string; mime: string; dataBase64: string; note?: string }) {
+  const s = db();
+  if (!input.title?.trim()) throw new ApiError(400, "도면 이름을 입력해 주세요");
+  if (!input.dataBase64) throw new ApiError(400, "파일을 골라 주세요");
+  const data = Buffer.from(input.dataBase64, "base64");
+  if (data.length > MAX_DRAWING) throw new ApiError(400, "목업은 3MB까지 올릴 수 있어요");
+  const id = ++s.seq.drawing;
+  const cad = CAD_EXT.test(input.fileName);
+  s.files[id] = { mime: input.mime || "application/octet-stream", data, fileName: input.fileName };
+  const d: Drawing = {
+    id,
+    title: input.title.trim(),
+    kind: input.kind,
+    dwgNo: input.dwgNo?.trim() || null,
+    revision: input.revision?.trim() || "REV.0",
+    zoneIds: input.zoneIds ?? [],
+    equipment: (input.equipment ?? []).map((e) => e.trim()).filter(Boolean),
+    fileName: input.fileName,
+    mime: input.mime,
+    url: `/api/drawing/file?id=${id}`,
+    cad,
+    mapsToFloor: false,
+    note: input.note?.trim() || null,
+    uploadedAt: now(),
+    uploadedBy: "담당자",
+  };
+  s.drawings.push(d);
+  log(s, "drawing.uploaded", "담당자", `${d.title} (${d.fileName}) 등록`);
+  return d;
+}
+
+// 단말의 작업 목록: 열린 작업 전부 + 오늘 끝나거나 취소된 작업
+export function getInbox(deviceId: string): InboxResponse {
+  const s = db();
+  tick(s);
+  const today = startOfDay(dayKey(new Date()));
+  const doneAt = (w: Work) => w.endedAt ?? w.cancelledAt ?? null;
+  const works = s.works
+    .filter((w) => w.deviceId === deviceId && (isOpen(w) || (doneAt(w) != null && new Date(doneAt(w)!) >= today)))
+    .reverse()
+    .map((w) => ({ ...w, ...progress(s, w) }));
+  return {
+    now: now(),
+    deviceId,
+    works,
+    zones: s.zones,
+    alert: s.alerts.findLast((a) => a.type === "fall" && a.status !== "resolved" && a.deviceId === deviceId) ?? null,
+  };
+}
+
+export function getTags(): TagsResponse {
+  const s = db();
+  return {
+    zones: s.zones,
+    tags: s.tags.filter((t) => t.status === "active"),
+    history: s.tags.filter((t) => t.status === "superseded"),
+    works: s.works.map(({ id, code, tagIds }) => ({ id, code, tagIds })),
+  };
+}
 export function getWorkDetail(workId: number): WorkDetailResponse {
   const s = db();
   tick(s);
@@ -365,11 +510,12 @@ export function getWorkDetail(workId: number): WorkDetailResponse {
     now: now(),
     work: { ...w, ...progress(s, w) },
     zone: s.zones.find((z) => z.id === w.zoneId) ?? null,
-    tags: s.tags.filter((t) => w.tagIds.includes(t.id)),
+    tags: tagsOf(s, w),
     confirmations: s.confirmations.filter((c) => c.workId === w.id),
     alerts,
     dispatches: s.dispatches.filter((d) => alertIds.has(d.alertId)),
     events: s.events.filter((e) => e.workId === w.id || (e.alertId != null && alertIds.has(e.alertId))).reverse(),
+    drawings: drawingsFor(s, w),
   };
 }
 
@@ -427,15 +573,28 @@ export function confirm(input: { workId: number; checkItemId: number; value?: nu
   const s = db();
   const w = findWork(s, input.workId);
   if (w.status === "ended") throw new ApiError(400, "이미 종료된 작업이에요");
+  if (w.status === "cancelled") throw new ApiError(400, "취소된 작업이에요");
   const tag = s.tags.find((t) => w.tagIds.includes(t.id) && t.checkItems.some((c) => c.id === input.checkItemId));
   const item = tag?.checkItems.find((c) => c.id === input.checkItemId);
   if (!tag || !item) throw new ApiError(400, "이 작업에 없는 확인 항목이에요");
   if (s.confirmations.some((c) => c.workId === w.id && c.checkItemId === item.id)) throw new ApiError(400, "이미 확인한 항목이에요 (수정 불가)");
   if (item.needs === "value") {
     if (input.value === undefined || input.value === null || Number.isNaN(input.value)) throw new ApiError(400, "값이 필요한 항목이에요");
-    const outMin = item.min != null && input.value < item.min;
-    const outMax = item.max != null && input.value > item.max;
-    if (outMin || outMax) throw new ApiError(400, `정상 범위(${item.min ?? "-"}~${item.max ?? "-"}${item.unit ?? ""})를 벗어났어요. 작업을 시작하지 말고 관제에 알려주세요`);
+    if (!inRange(item, input.value)) {
+      // 이상값은 '확인'으로 저장하지 않고, 측정 이상 알림으로 남겨 관제에 바로 보낸다 (로봇 출동 없음)
+      const range = fmtRange(item);
+      const value = input.value;
+      const shown = `${value}${item.unit ?? ""}`;
+      log(s, "check.rejected", "작업반장", `${tag.title} · ${item.item} · ${shown} (정상 ${range})`, { workId: w.id });
+      const open = s.alerts.find((a) => a.type === "abnormal" && a.status !== "resolved" && a.workId === w.id && a.reading?.checkItemId === item.id);
+      if (open) open.reading = { ...open.reading!, value };
+      else {
+        const a: Alert = { id: ++s.seq.alert, type: "abnormal", source: "reading", deviceId: w.deviceId, zoneId: w.zoneId, workId: w.id, status: "open", raisedAt: now(), reading: { tagId: tag.id, tagTitle: tag.title, checkItemId: item.id, item: item.item, value, unit: item.unit, range } };
+        s.alerts.push(a);
+        log(s, "alert.abnormal", "system", `측정 이상 · ${w.zoneId} · ${tag.title} ${item.item} ${shown}`, { alertId: a.id, workId: w.id });
+      }
+      throw new ApiError(400, `정상 범위(${range})를 벗어났어요. 관제에 자동으로 알렸어요 — 다시 측정해 정상이면 진행할 수 있어요`);
+    }
   }
   if (item.needs === "photo" && !input.photo) throw new ApiError(400, "사진이 필요한 항목이에요");
 
@@ -446,14 +605,21 @@ export function confirm(input: { workId: number; checkItemId: number; value?: nu
     w.checkedInAt = c.confirmedAt;
     log(s, "work.checked_in", "작업반장", `${w.code} 체크인 · ${w.zoneId}`, { workId: w.id });
   }
+  // 같은 항목에 열린 측정 이상이 있으면 '재측정 정상'으로 표시 (알림 종료는 관제가 판단)
+  const abn = s.alerts.find((a) => a.type === "abnormal" && a.status !== "resolved" && a.workId === w.id && a.reading?.checkItemId === item.id);
+  if (abn?.reading) abn.reading = { ...abn.reading, recheckedValue: c.value, recheckedAt: c.confirmedAt };
   const val = c.value != null ? ` · ${c.value}${item.unit ?? ""}` : c.photo ? " · 사진" : "";
-  log(s, "check.confirmed", "작업반장", `${tag.title} · ${item.item}${val}`, { workId: w.id });
+  log(s, "check.confirmed", "작업반장", `${tag.title} · ${item.item}${val}${abn ? " (재측정)" : ""}`, { workId: w.id });
   return c;
 }
 
 export function completeWork(workId: number) {
   const s = db();
   const w = findWork(s, workId);
+  if (!isOpen(w)) throw new ApiError(400, "종료되거나 취소된 작업이에요");
+  // 한 단말에서 작업 중은 하나만 (쓰러짐 알림이 어느 구역인지 분명하게)
+  const other = s.works.find((x) => x.id !== w.id && x.deviceId === w.deviceId && x.status === "confirmed");
+  if (other) throw new ApiError(400, `${other.code} 작업이 진행 중이에요. 먼저 종료한 뒤 시작해 주세요`);
   if (progress(s, w).requiredLeft > 0) throw new ApiError(400, "필수 항목을 모두 확인해야 작업을 시작할 수 있어요");
   w.status = "confirmed";
   w.confirmedAt = now();
@@ -464,6 +630,7 @@ export function completeWork(workId: number) {
 export function endWork(workId: number) {
   const s = db();
   const w = findWork(s, workId);
+  if (w.status === "cancelled") throw new ApiError(400, "취소된 작업이에요");
   w.status = "ended";
   w.endedAt = now();
   log(s, "work.ended", "작업반장", `${w.code} 작업 종료`, { workId });
@@ -475,6 +642,7 @@ export function createWork(input: { title: string; zoneId: string; deviceId: str
   if (!input.title?.trim()) throw new ApiError(400, "작업명을 입력해 주세요");
   if (!s.zones.some((z) => z.id === input.zoneId)) throw new ApiError(400, "구역을 선택해 주세요");
   if (!input.tagIds?.length) throw new ApiError(400, "태그를 1개 이상 묶어 주세요");
+  if (input.tagIds.some((id) => s.tags.find((t) => t.id === id)?.status !== "active")) throw new ApiError(400, "수정된 예전 버전 태그가 섞여 있어요. 화면을 새로고침해 주세요");
   const id = ++s.seq.work;
   const w: Work = { ...input, id, code: `W-${String(id).padStart(3, "0")}`, status: "published", publishedAt: now() };
   s.works.push(w);
@@ -490,14 +658,51 @@ export function createTag(input: { zoneId: string; title: string; substance?: st
   const t: Tag = {
     ...input,
     id,
+    version: 1,
+    replacesId: null,
     status: "active",
     verifiedBy: input.official ? "원청 안전팀" : null,
+    verifiedAt: input.official ? now() : null,
     createdAt: now(),
     checkItems: input.checkItems.map((c, i) => ({ ...c, id: ++s.seq.check, tagId: id, seq: i + 1 })),
   };
   s.tags.push(t);
   log(s, "tag.created", "담당자", `${t.title} 태그 생성 (${t.zoneId})`);
   return t;
+}
+
+export function reviseTag(tagId: number, patch: TagPatch) {
+  const s = db();
+  if (patch.title !== undefined && !patch.title.trim()) throw new ApiError(400, "설비 이름은 비울 수 없어요");
+  if (patch.hazard !== undefined && !patch.hazard.trim()) throw new ApiError(400, "위험 문구는 비울 수 없어요");
+  if (patch.checkItems && !patch.checkItems.length) throw new ApiError(400, "작업 전 확인 항목이 1개 이상 필요해요");
+  const id = reviseTagRow(s, tagId, patch, now(), "담당자");
+  return s.tags.find((t) => t.id === id)!;
+}
+
+export function verifyTag(tagId: number) {
+  const s = db();
+  const t = s.tags.find((x) => x.id === tagId);
+  if (!t) throw new ApiError(404, "태그를 찾을 수 없어요");
+  if (t.status !== "active") throw new ApiError(400, "예전 버전은 승인할 수 없어요");
+  if (t.official) throw new ApiError(400, "이미 공식 태그예요");
+  t.official = true;
+  t.verifiedBy = "원청 안전팀";
+  t.verifiedAt = now();
+  log(s, "tag.verified", "원청 안전팀", `${t.title} 공식 태그로 승인`);
+  return t;
+}
+
+export function cancelWork(workId: number, reason: string) {
+  const s = db();
+  const w = findWork(s, workId);
+  if (w.status !== "published" && w.status !== "opened") throw new ApiError(400, "작업이 시작된 뒤에는 취소할 수 없어요. 작업 종료로 처리해 주세요");
+  if (!reason?.trim()) throw new ApiError(400, "취소 사유를 적어 주세요");
+  w.status = "cancelled";
+  w.cancelledAt = now();
+  w.cancelReason = reason.trim();
+  log(s, "work.cancelled", "담당자", `${w.code} 작업 취소 · ${w.cancelReason}`, { workId });
+  return w;
 }
 
 export function raiseFall(input: { source: AlertSource; deviceId?: string | null; zoneId?: string | null }) {
@@ -544,10 +749,13 @@ export function resolve(alertId: number, resolution: "handled" | "false_alarm") 
   a.status = "resolved";
   a.resolvedAt = now();
   a.resolution = resolution;
-  s.dispatches.filter((d) => d.alertId === alertId && d.status === "moving").forEach((d) => (d.status = "arrived"));
-  // 데모 단순화: 알림이 끝나면 로봇은 대기 위치로 복귀
-  s.robot.x = s.robot.homeX;
-  s.robot.y = s.robot.homeY;
+  // 데모 단순화: 이 알림으로 출동했던 로봇은 대기 위치로 복귀 (측정 이상처럼 출동이 없던 알림은 로봇과 무관)
+  const mine = s.dispatches.filter((d) => d.alertId === alertId);
+  if (mine.length) {
+    mine.filter((d) => d.status === "moving").forEach((d) => (d.status = "arrived"));
+    s.robot.x = s.robot.homeX;
+    s.robot.y = s.robot.homeY;
+  }
   log(s, "alert.resolved", resolution === "false_alarm" ? "작업반장/관제" : "관제", `알림 A-${alertId} ${resolution === "false_alarm" ? "오탐 해제" : "처리 완료"}`, { alertId });
   return a;
 }

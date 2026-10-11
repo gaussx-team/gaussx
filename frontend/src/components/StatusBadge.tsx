@@ -6,6 +6,7 @@ const STYLE: Record<WorkStatus, string> = {
   opened: "bg-sky-50 text-sky-700 ring-sky-200",
   confirmed: "bg-blue-600 text-white ring-blue-600",
   ended: "bg-slate-100 text-slate-500 ring-slate-200",
+  cancelled: "bg-white text-slate-400 ring-slate-200 line-through",
 };
 
 export function StatusBadge({ status }: { status: WorkStatus }) {

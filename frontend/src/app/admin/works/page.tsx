@@ -5,12 +5,12 @@ import { useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { StatusBadge } from "@/components/StatusBadge";
 import { usePolling } from "@/hooks/usePolling";
-import { fmtShort, minutesBetween } from "@/lib/format";
+import { fmtShort, isOpen, workWarnings } from "@/lib/format";
 import type { StateResponse, WorkView } from "@/lib/types";
 
 const TABS = [
-  { id: "active", label: "진행 중", match: (w: WorkView) => w.status !== "ended" },
-  { id: "ended", label: "종료", match: (w: WorkView) => w.status === "ended" },
+  { id: "active", label: "진행 중", match: (w: WorkView) => isOpen(w) },
+  { id: "ended", label: "종료·취소", match: (w: WorkView) => !isOpen(w) },
   { id: "all", label: "전체", match: () => true },
 ] as const;
 
@@ -27,10 +27,10 @@ export default function WorksPage() {
 
   return (
     <AppShell
-      title="작업 지시"
+      title="작업 등록"
       actions={
         <Link href="/admin/works/new" className="btn-primary">
-          + 새 작업 지시
+          + 새 작업 등록
         </Link>
       }
     >
@@ -61,8 +61,8 @@ export default function WorksPage() {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filtered.map((w) => {
-                // 전송 후 아무도 열지 않은 시간 (서버 시각 기준)
-                const unseen = data && w.status === "published" ? minutesBetween(w.publishedAt, data.now) : null;
+                // 카드 미확인 · 허가 시간 초과 (서버 시각 기준)
+                const warns = data ? workWarnings(w, data.now) : [];
                 return (
                   <tr key={w.id} onClick={() => router.push(`/admin/works/${w.id}`)} className="cursor-pointer hover:bg-slate-50">
                     <td className="py-3 font-mono text-xs">{w.code}</td>
@@ -71,7 +71,11 @@ export default function WorksPage() {
                     <td className="font-mono text-xs">{w.deviceId}</td>
                     <td>
                       <StatusBadge status={w.status} />
-                      {unseen !== null && unseen >= 1 && <div className="mt-0.5 text-xs text-amber-600">미확인 {unseen}분</div>}
+                      {warns.map((x) => (
+                        <div key={x.kind} className="mt-0.5 text-xs font-semibold text-amber-600">
+                          ⚠ {x.text}
+                        </div>
+                      ))}
                     </td>
                     <td>
                       <div className="flex items-center gap-2">

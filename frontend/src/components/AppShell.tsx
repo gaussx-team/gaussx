@@ -6,8 +6,9 @@ import { usePathname } from "next/navigation";
 const NAV = [
   { href: "/", label: "대시보드", icon: "▦" },
   { href: "/control", label: "관제", icon: "◉" },
-  { href: "/admin/works", label: "작업 지시", icon: "▤" },
+  { href: "/admin/works", label: "작업 등록", icon: "▤" },
   { href: "/admin/tags", label: "위험 태그", icon: "⚑" },
+  { href: "/drawings", label: "도면", icon: "▢" },
   { href: "/robot", label: "로봇", icon: "⚙" },
   { href: "/history", label: "이력", icon: "≡" },
 ];
@@ -45,7 +46,7 @@ export function AppShell({ title, crumbs, actions, children }: Props) {
           </nav>
         </div>
         <div className="hidden space-y-1 px-5 text-xs lg:absolute lg:bottom-5 lg:block">
-          <Link href="/card" className="block text-slate-500 hover:underline">
+          <Link href="/card?choose=1" className="block text-slate-500 hover:underline">
             작업자 카드 화면 ↗
           </Link>
           <Link href="/demo" className="block text-slate-400 hover:underline">

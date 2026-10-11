@@ -8,7 +8,7 @@ import { api } from "@/lib/api";
 import { fmtTime, ROBOT_MODE_LABEL, robotSummary } from "@/lib/format";
 import type { RobotMode, StateResponse } from "@/lib/types";
 
-const DEVICE = "helmet-01";
+const DEVICE = "device-01";
 
 // 발표자 전용 시연 모드: 작업자 휴대폰 화면 + 시나리오 진행 + 무대 트리거를 한 화면에
 export default function DemoPage() {
@@ -16,13 +16,13 @@ export default function DemoPage() {
   const [frameKey, setFrameKey] = useState(0);
 
   const work = data?.works.findLast((w) => w.deviceId === DEVICE) ?? null;
-  const alert = work ? (data?.alerts.find((a) => a.workId === work.id) ?? null) : null;
-  const openAlert = data?.alerts.find((a) => a.status !== "resolved") ?? null;
+  const alert = work ? (data?.alerts.find((a) => a.type === "fall" && a.workId === work.id) ?? null) : null;
+  const openAlert = data?.alerts.find((a) => a.type === "fall" && a.status !== "resolved") ?? null;
 
   const steps = [
-    { who: "원청 담당자", what: "작업 지시 전송", say: "구역을 고르면 그 구역 위험 태그가 자동으로 묶여 헬멧 기기로 가요.", at: work?.publishedAt },
+    { who: "원청 담당자", what: "작업 등록 · 전송", say: "구역을 고르면 그 구역 위험 태그가 자동으로 묶여 작업반장 단말로 가요.", at: work?.publishedAt },
     { who: "작업반장", what: "카드 열람", say: "로그인 없이 기기로 받아요. 열람 시각이 남아요.", at: work?.openedAt },
-    { who: "작업반장", what: "작업 전 확인 · 체크인", say: "첫 확인이 곧 체크인. 범위를 벗어난 값은 거부돼요 (예: 잔압 3bar).", at: work?.checkedInAt },
+    { who: "작업반장", what: "작업 전 확인 · 체크인", say: "첫 확인이 곧 체크인. 잔압에 3을 넣으면 거부되고 관제에 '측정 이상'이 떠요 → 0으로 다시 측정.", at: work?.checkedInAt },
     { who: "작업반장", what: "확인 완료 · 작업 시작", say: "필수 항목을 다 해야 버튼이 열려요. 체크는 되돌릴 수 없어요.", at: work?.confirmedAt },
     { who: "현장", what: "쓰러짐 발생", say: "자동 감지 · SOS 3초 · 무대 트리거 중 하나.", at: alert?.raisedAt },
     alert?.status === "no_robot" || alert?.robotUnavailable
@@ -59,7 +59,7 @@ export default function DemoPage() {
         <section className="space-y-2">
           <div className="text-center text-xs text-slate-500">작업반장 휴대폰 · {DEVICE} (여기서 바로 조작 가능)</div>
           <PhoneFrame>
-            <iframe key={frameKey} title="작업 카드" src={`/card?device=${DEVICE}`} className="h-full w-full" />
+            <iframe key={frameKey} title="작업 카드" src={work ? `/card?device=${DEVICE}&work=${work.id}` : `/card?device=${DEVICE}`} className="h-full w-full" />
           </PhoneFrame>
         </section>
 
