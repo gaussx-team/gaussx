@@ -1,6 +1,8 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Logo } from "./Logo";
+import { TopClock } from "./TopClock";
 
 // 관리자·관제용 공통 틀: 넓은 화면은 왼쪽 메뉴, 좁은 화면은 위쪽 가로 메뉴
 const NAV = [
@@ -28,9 +30,9 @@ export function AppShell({ title, crumbs, actions, children }: Props) {
     <div className="min-h-dvh lg:grid lg:grid-cols-[220px_1fr]">
       <aside className="sticky top-0 z-20 border-b border-slate-200 bg-white lg:h-dvh lg:border-b-0 lg:border-r">
         <div className="flex items-center gap-3 px-4 py-3 lg:block lg:px-5 lg:py-5">
-          <Link href="/" className="block">
-            <div className="text-lg font-black tracking-tight">GaussX</div>
-            <div className="hidden text-xs text-slate-500 lg:block">데모 현장 · 4×3m</div>
+          <Link href="/" className="block shrink-0">
+            <Logo className="h-7 w-auto text-slate-900" />
+            <div className="mt-1.5 hidden text-xs text-slate-500 lg:block">데모 현장 · 4×3m</div>
           </Link>
           <nav className="flex gap-1 overflow-x-auto lg:mt-6 lg:flex-col">
             {NAV.map((n) => (
@@ -56,6 +58,9 @@ export function AppShell({ title, crumbs, actions, children }: Props) {
       </aside>
 
       <div className="min-w-0">
+        <div className="flex justify-end border-b border-slate-200 bg-white/80 px-4 py-2 lg:px-8">
+          <TopClock />
+        </div>
         <div className="flex flex-wrap items-end gap-3 px-4 pt-5 lg:px-8">
           <div>
             {crumbs && (

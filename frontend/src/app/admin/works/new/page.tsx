@@ -6,8 +6,8 @@ import { ZoneMap } from "@/components/ZoneMap";
 import { usePolling } from "@/hooks/usePolling";
 import { api } from "@/lib/api";
 import { DEVICES } from "@/lib/devices";
+import { kstTodayAt } from "@/lib/format";
 import type { StateResponse, Work } from "@/lib/types";
-
 
 // 지금 정시 + n시간 (ISO)
 const hourFromNow = (plusH: number) => {
@@ -17,13 +17,6 @@ const hourFromNow = (plusH: number) => {
   return d.toISOString();
 };
 
-// <input type="time"> 값을 오늘 날짜의 ISO 로
-const todayIso = (hhmm: string) => {
-  const [h, m] = hhmm.split(":").map(Number);
-  const d = new Date();
-  d.setHours(h, m, 0, 0);
-  return d.toISOString();
-};
 
 export default function NewWorkPage() {
   const router = useRouter();
@@ -51,8 +44,8 @@ export default function NewWorkPage() {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const ps = start ? todayIso(start) : hourFromNow(0);
-    let pe = end ? todayIso(end) : hourFromNow(8);
+    const ps = start ? kstTodayAt(start) : hourFromNow(0);
+    let pe = end ? kstTodayAt(end) : hourFromNow(8);
     if (pe <= ps) pe = new Date(new Date(pe).getTime() + 86_400_000).toISOString(); // 자정을 넘기는 허가
     try {
       const w = await api.post<Work>("/work", { title, zoneId, deviceId, tagIds, permitName, permitStart: ps, permitEnd: pe });

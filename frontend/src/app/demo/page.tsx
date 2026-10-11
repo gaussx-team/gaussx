@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { Logo } from "@/components/Logo";
 import { useState } from "react";
 import { PhoneFrame } from "@/components/PhoneFrame";
 import { ZoneMap } from "@/components/ZoneMap";
@@ -46,7 +47,7 @@ export default function DemoPage() {
   return (
     <div className="min-h-dvh bg-slate-100">
       <header className="flex flex-wrap items-center gap-3 bg-slate-900 px-5 py-3 text-white">
-        <span className="font-black">GaussX</span>
+        <Logo className="h-6 w-auto text-white" />
         <span className="rounded bg-amber-400 px-2 py-0.5 text-xs font-bold text-slate-900">시연 모드 · 발표자 전용</span>
         <span className="text-xs text-slate-400">실제 서비스 화면이 아니에요. 무대에서 흐름을 진행하는 도구예요.</span>
         <Link href="/" className="ml-auto text-sm text-slate-300 hover:text-white">
