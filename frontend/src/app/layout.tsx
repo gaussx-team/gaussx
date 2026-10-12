@@ -2,8 +2,8 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "GaussX 데모",
-  description: "현장 위험 태그 · 작업 카드 · 쓰러짐 감지 · 로봇 출동 데모",
+  title: "GaussX",
+  description: "현장 위험 태그 · 작업 카드 · 쓰러짐 감지 · 로봇 출동",
 };
 
 export const viewport: Viewport = {

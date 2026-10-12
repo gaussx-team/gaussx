@@ -21,20 +21,26 @@ export function TopClock() {
   if (tick === null) return <div className="h-5 w-56" aria-hidden />;
 
   const nowLocal = tick * 1000;
-  const stale = lastOkAt !== null && nowLocal - lastOkAt > STALE_MS;
-  const state = error ? "down" : stale ? "stale" : lastOkAt ? "ok" : "idle";
-  const dot = { ok: "bg-emerald-500", stale: "bg-amber-500", down: "bg-red-500", idle: "bg-slate-300" }[state];
-  const note = { ok: "갱신", stale: "갱신 지연", down: "연결 끊김", idle: "" }[state];
+  const fresh = lastOkAt !== null && nowLocal - lastOkAt <= STALE_MS;
+  // ok: 정상 · partial: 일부 API 만 실패 · stale: 실패는 없는데 갱신이 멈춤 · down: 실패 + 갱신 멈춤(또는 한 번도 못 받음)
+  const state = error ? (fresh ? "partial" : "down") : lastOkAt === null ? "idle" : fresh ? "ok" : "stale";
+  const view = {
+    ok: { dot: "bg-emerald-500", text: "", note: "갱신" },
+    partial: { dot: "bg-red-500", text: "text-red-600", note: "일부 정보 못 받음 · 갱신" },
+    stale: { dot: "bg-amber-500", text: "text-amber-600", note: "갱신 지연 · 마지막" },
+    down: { dot: "bg-red-500", text: "text-red-600", note: lastOkAt ? "연결 끊김 · 마지막" : "연결 끊김" },
+    idle: null,
+  }[state];
 
   return (
     <div className="flex items-center gap-3 text-xs text-slate-500">
       <time className="font-mono text-sm font-semibold tabular-nums text-slate-900" suppressHydrationWarning>
         {kst(nowLocal + offsetMs, true)} KST
       </time>
-      {state !== "idle" && (
-        <span className={`flex items-center gap-1.5 ${state === "down" ? "text-red-600" : state === "stale" ? "text-amber-600" : ""}`}>
-          <span className={`h-2 w-2 rounded-full ${dot}`} />
-          {note} {lastOkAt && <span className="tabular-nums">{kst(Math.min(lastOkAt, nowLocal) + offsetMs, false)}</span>}
+      {view && (
+        <span className={`flex items-center gap-1.5 ${view.text}`} title={error ?? undefined} role="status">
+          <span className={`h-2 w-2 rounded-full ${view.dot}`} />
+          {view.note} {lastOkAt && <span className="tabular-nums">{kst(Math.min(lastOkAt, nowLocal) + offsetMs, false)}</span>}
         </span>
       )}
     </div>
