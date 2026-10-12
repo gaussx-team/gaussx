@@ -1,0 +1,143 @@
+{
+  "note": "새 회차(데모 리셋)마다 넣는 데모 데이터. 프론트 목업(frontend/src/lib/server/store.ts seed)과 같은 내용. 시각은 넣는 순간 기준: 'D-6 09:30' = 6일 전 KST 09:30 · '-50m' = 50분 전 · 'now' · 'H+8' = 지금 정시 + 8시간",
+  "tags": [
+    {
+      "key": "p203", "zoneId": "Z1", "title": "배관 P-203", "substance": "불산 55%",
+      "hazard": "피부 접촉 시 중증 화상 · 통증이 늦게 나타날 수 있음", "emergencyNote": "구조 시 내산 보호구 착용 후 접근",
+      "equipmentState": "running", "official": true, "verifiedBy": "원청 안전팀", "x": 1.2, "y": 0.45,
+      "at": "D-8 09:00", "by": "원청 안전팀",
+      "checkItems": [
+        { "item": "배관 잔압 0 확인", "needs": "value", "unit": "bar", "required": true, "min": 0, "max": 0 },
+        { "item": "밸브 잠금·표지 부착", "needs": "photo", "required": true },
+        { "item": "내산 보호구 착용", "needs": "none", "required": true },
+        { "item": "세안·샤워 설비 위치 확인", "needs": "none", "required": false }
+      ]
+    },
+    {
+      "key": "v11", "zoneId": "Z1", "title": "질소 퍼지 밸브 V-11", "substance": "질소",
+      "hazard": "질소 누출 시 산소 결핍 · 무색·무취라 감지 어려움", "emergencyNote": null,
+      "equipmentState": "valve_closed", "official": true, "verifiedBy": "원청 안전팀", "x": 0.45, "y": 1.1,
+      "at": "D-8 09:00", "by": "원청 안전팀",
+      "checkItems": [
+        { "item": "산소 농도 측정", "needs": "value", "unit": "%", "required": true, "min": 18, "max": 23.5, "maxExclusive": true }
+      ]
+    },
+    {
+      "key": "t02", "zoneId": "Z2", "title": "탱크 T-02", "substance": "황산 98%",
+      "hazard": "접촉 시 화상 · 물과 섞이면 격렬히 발열", "emergencyNote": null,
+      "equipmentState": "running", "official": false, "verifiedBy": null, "x": 3.1, "y": 0.6,
+      "at": "D-8 09:00", "by": "원청 안전팀",
+      "checkItems": [
+        { "item": "내산 장갑 착용", "needs": "photo", "required": true }
+      ]
+    },
+    {
+      "key": "pu07", "zoneId": "Z2", "title": "펌프 PU-07", "substance": "황산 이송",
+      "hazard": "회전부 끼임 · 정지·잠금 후 접근", "emergencyNote": "구조 전 펌프 전원 차단 확인",
+      "equipmentState": "running", "official": true, "verifiedBy": "원청 안전팀", "x": 2.5, "y": 1.1,
+      "at": "D-8 09:00", "by": "원청 안전팀",
+      "checkItems": [
+        { "item": "펌프 정지·전원 차단", "needs": "photo", "required": true },
+        { "item": "회전부 완전 정지 확인", "needs": "none", "required": true }
+      ]
+    },
+    {
+      "key": "mcc3", "zoneId": "Z3", "title": "분전반 MCC-3", "substance": null,
+      "hazard": "감전 위험 · 차단·검전 후 작업", "emergencyNote": "구조 시 주차단기 OFF 먼저",
+      "equipmentState": "running", "official": true, "verifiedBy": "원청 안전팀", "x": 0.5, "y": 2.0,
+      "at": "D-8 09:00", "by": "원청 안전팀",
+      "checkItems": [
+        { "item": "차단기 OFF·잠금 표지", "needs": "photo", "required": true },
+        { "item": "검전기 무전압 확인", "needs": "value", "unit": "V", "required": true, "min": 0, "max": 0 },
+        { "item": "절연 장갑 착용", "needs": "none", "required": true }
+      ]
+    },
+    {
+      "key": "f2", "zoneId": "Z3", "title": "환기팬 F-2 지지대", "substance": null,
+      "hazard": "노후 지지대 · 하부 출입 통제", "emergencyNote": null,
+      "equipmentState": "deteriorated", "official": false, "verifiedBy": null, "x": 1.5, "y": 2.6,
+      "at": "D-8 09:00", "by": "원청 안전팀",
+      "checkItems": [
+        { "item": "하부 출입 통제", "needs": "none", "required": true },
+        { "item": "지지대 상태 사진", "needs": "photo", "required": false }
+      ]
+    }
+  ],
+  "revisions": [
+    {
+      "key": "p203v2", "tag": "p203", "at": "D-3 17:00", "by": "원청 안전팀",
+      "patch": { "emergencyNote": "구조자 내산 보호구 필요 · 피부 접촉 시 다량의 물로 세척 후 글루콘산칼슘 겔 (MSDS 확인)" }
+    }
+  ],
+  "drawings": [
+    {
+      "title": "데모 현장 평면도", "kind": "floor", "dwgNo": "A-101", "revision": "REV.B", "zoneIds": ["Z1", "Z2", "Z3"],
+      "equipment": ["P-203", "V-11", "T-02", "PU-07", "MCC-3", "F-2"], "fileName": "A-101_평면도_REV.B.svg",
+      "url": "/drawings/floor-plan.svg", "mime": "image/svg+xml", "mapsToFloor": true, "note": "태그 좌표와 같은 축척(4×3m)",
+      "at": "D-8 10:00", "by": "원청 설비팀"
+    },
+    {
+      "title": "1구역 HF 이송 라인 P&ID", "kind": "pid", "dwgNo": "P-201", "revision": "REV.C", "zoneIds": ["Z1"],
+      "equipment": ["P-203", "V-11"], "fileName": "P-201_HF라인_PID_REV.C.svg", "url": "/drawings/pid-z1.svg",
+      "mime": "image/svg+xml", "note": "차단 밸브 XV-201, 압력계 PI-203, 드레인 위치 포함", "at": "D-8 10:00", "by": "원청 설비팀"
+    },
+    {
+      "title": "MCC-3 단선결선도", "kind": "electrical", "dwgNo": "E-301", "revision": "REV.A", "zoneIds": ["Z3"],
+      "equipment": ["MCC-3", "PU-07", "F-2"], "fileName": "E-301_MCC-3_단선도_REV.A.svg", "url": "/drawings/sld-mcc3.svg",
+      "mime": "image/svg+xml", "note": "주차단기 MCCB-0 · 피더별 차단기", "at": "D-8 10:00", "by": "원청 설비팀"
+    },
+    {
+      "title": "MCC-3 단선결선도 (CAD 원본)", "kind": "electrical", "dwgNo": "E-301", "revision": "REV.A", "zoneIds": ["Z3"],
+      "equipment": ["MCC-3"], "fileName": "E-301_MCC-3_단선도_REV.A.dwg", "url": "/drawings/sld-mcc3.svg",
+      "mime": "application/acad", "cad": true, "note": "원본 DWG — 내려받아 CAD 프로그램으로 열기 (데모는 SVG로 대체)",
+      "at": "D-8 10:00", "by": "원청 설비팀"
+    }
+  ],
+  "works": [
+    {
+      "title": "MCC-3 분전반 정기 점검", "zoneId": "Z3", "deviceId": "device-01", "tags": ["mcc3"],
+      "past": { "start": "D-6 09:30", "end": "D-6 11:40" },
+      "checks": [ { "tag": "mcc3", "n": 0, "photo": "breaker.jpg" }, { "tag": "mcc3", "n": 1, "value": 0 }, { "tag": "mcc3", "n": 2 } ]
+    },
+    {
+      "title": "P-203 배관 누설 점검", "zoneId": "Z1", "deviceId": "device-02", "tags": ["p203"],
+      "past": { "start": "D-5 13:10", "end": "D-5 17:00" },
+      "checks": [ { "tag": "p203", "n": 0, "value": 0 }, { "tag": "p203", "n": 1, "photo": "lock.jpg" }, { "tag": "p203", "n": 2 }, { "tag": "p203", "n": 3 } ]
+    },
+    {
+      "title": "PU-07 펌프 씰 교체", "zoneId": "Z2", "deviceId": "device-01", "tags": ["pu07", "t02"],
+      "past": { "start": "D-4 10:20", "end": "D-4 14:30" },
+      "checks": [ { "tag": "pu07", "n": 0, "photo": "pump.jpg" }, { "tag": "pu07", "n": 1 }, { "tag": "t02", "n": 0, "photo": "glove.jpg" } ],
+      "alert": { "source": "sos_button", "at": "D-4 11:45", "ack": "D-4 11:46", "resolved": "D-4 11:51", "resolution": "handled" }
+    },
+    {
+      "title": "F-2 환기팬 지지대 확인", "zoneId": "Z3", "deviceId": "device-02", "tags": ["f2"],
+      "past": { "start": "D-3 15:00", "end": "D-3 16:10" },
+      "checks": [ { "tag": "f2", "n": 0 }, { "tag": "f2", "n": 1, "photo": "fan.jpg" } ]
+    },
+    {
+      "title": "V-11 밸브 패킹 교체", "zoneId": "Z1", "deviceId": "device-02", "tags": ["v11"],
+      "past": { "start": "D-2 10:00", "end": "D-2 15:20" },
+      "checks": [ { "tag": "v11", "n": 0, "value": 20.8 } ]
+    },
+    {
+      "title": "T-02 탱크 외부 점검", "zoneId": "Z2", "deviceId": "device-01", "tags": ["t02"],
+      "past": { "start": "D-1 13:00", "end": "D-1 16:00" },
+      "checks": [ { "tag": "t02", "n": 0, "photo": "glove.jpg" } ],
+      "alert": { "source": "accel", "at": "D-1 14:10", "resolved": "D-1 14:10:08", "resolution": "false_alarm" }
+    },
+    {
+      "title": "PU-07 펌프 진동 점검", "zoneId": "Z2", "deviceId": "device-02", "tags": ["pu07"],
+      "published": "-50m", "opened": "-47m", "confirmed": "-40m", "permit": ["-180m", "-10m"],
+      "checks": [ { "tag": "pu07", "n": 0, "photo": "pump.jpg", "at": "-45m" }, { "tag": "pu07", "n": 1, "at": "-43m" } ]
+    },
+    {
+      "title": "MCC-3 분전반 차단기 교체", "zoneId": "Z3", "deviceId": "device-01", "tags": ["mcc3"],
+      "published": "-20m", "permit": ["H+0", "H+8"]
+    },
+    {
+      "title": "P-203 배관 플랜지 교체", "zoneId": "Z1", "deviceId": "device-01", "tags": ["p203v2", "v11"],
+      "published": "now", "permit": ["H+0", "H+8"], "permitName": "작업허가서_예시.pdf"
+    }
+  ]
+}

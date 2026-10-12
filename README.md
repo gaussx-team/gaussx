@@ -10,17 +10,19 @@
 | `docs/` | 기준 문서(SPEC) · API 약속 · ERD | 공통 |
 
 - 규칙: [CONVENTION.md](CONVENTION.md)
-- 기준 문서: [docs/SPEC.md](docs/SPEC.md) · API: [docs/api.md](docs/api.md)
+- 기준 문서: [docs/SPEC.md](docs/SPEC.md) · API: [docs/api.md](docs/api.md) · 데이터: [docs/ERD.md](docs/ERD.md)
 - 와이어프레임: [Figma](https://www.figma.com/design/hbD7GS4spj5wOAZPnigBt9)
 
 ## 실행 (데모 노트북)
 
-> 각 파트 세팅 후 채운다
+> 각 파트 세팅 후 채운다 (10/12: DB · backend)
 
 ```bash
-# 1. DB
-# 2. backend
-# 3. frontend
+# 1. DB — 개발은 설치 없이 PGlite(자동, PostgreSQL 17.5). 무대 노트북은 PostgreSQL 17 → backend/.env 의 DATABASE_URL
+# 2. backend (3001) — 처음 켜면 데모 데이터가 든 회차를 만든다. API 문서 http://localhost:3001/docs
+cd backend && npm install && npm run dev
+# 3. frontend (3000) — frontend/.env.local 에 NEXT_PUBLIC_API_BASE_URL=http://localhost:3001 (비우면 Next 목업)
+cd frontend && npm install && npm run dev
 ```
 
 ## 일정
