@@ -19,16 +19,18 @@ interface Props {
   title: string;
   crumbs?: { href: string; label: string }[];
   actions?: React.ReactNode;
+  // true 면 넓은 화면(lg 이상)에서 페이지가 화면 높이에 딱 맞는다 (관제·로봇처럼 스크롤 없이 보는 화면)
+  fill?: boolean;
   children: React.ReactNode;
 }
 
-export function AppShell({ title, crumbs, actions, children }: Props) {
+export function AppShell({ title, crumbs, actions, fill = false, children }: Props) {
   const path = usePathname();
   const active = (href: string) => (href === "/" ? path === "/" : path === href || path.startsWith(`${href}/`));
 
   return (
     <div className="min-h-dvh lg:grid lg:grid-cols-[220px_1fr]">
-      <aside className="sticky top-0 z-20 border-b border-slate-200 bg-white lg:h-dvh lg:border-b-0 lg:border-r">
+      <aside className="sticky top-0 z-20 border-b border-slate-200 bg-white lg:flex lg:h-dvh lg:flex-col lg:border-b-0 lg:border-r">
         <div className="flex items-center gap-3 px-4 py-3 lg:block lg:px-5 lg:py-5">
           <Link href="/" className="block shrink-0">
             <Logo className="h-7 w-auto text-slate-900" />
@@ -47,7 +49,7 @@ export function AppShell({ title, crumbs, actions, children }: Props) {
             ))}
           </nav>
         </div>
-        <div className="hidden space-y-1 px-5 text-xs lg:absolute lg:bottom-5 lg:block">
+        <div className="hidden space-y-1 px-5 pb-5 pt-4 text-xs lg:mt-auto lg:block">
           <Link href="/card?choose=1" className="block text-slate-500 hover:underline">
             작업자 카드 화면 ↗
           </Link>
@@ -57,7 +59,7 @@ export function AppShell({ title, crumbs, actions, children }: Props) {
         </div>
       </aside>
 
-      <div className="min-w-0">
+      <div className={`min-w-0 ${fill ? "lg:flex lg:h-dvh lg:flex-col" : ""}`}>
         <div className="flex justify-end border-b border-slate-200 bg-white/80 px-4 py-2 lg:px-8">
           <TopClock />
         </div>
@@ -79,7 +81,7 @@ export function AppShell({ title, crumbs, actions, children }: Props) {
           </div>
           {actions && <div className="ml-auto flex flex-wrap gap-2">{actions}</div>}
         </div>
-        <main className="p-4 lg:px-8">{children}</main>
+        <main className={`p-4 lg:px-8 ${fill ? "lg:min-h-0 lg:flex-1 lg:overflow-y-auto" : ""}`}>{children}</main>
       </div>
     </div>
   );

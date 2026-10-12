@@ -21,9 +21,16 @@ interface Props {
   highlightZoneId?: string | null;
   pick?: { x: number; y: number } | null;
   onPick?: (x: number, y: number) => void;
+  onTagClick?: (tagId: number) => void;
+  selectedTagId?: number | null;
+  // true 면 넓은 화면에서 부모 높이에 맞춰 4:3 비율로 줄어든다 (부모에 높이가 있어야 한다)
+  fit?: boolean;
 }
 
-export function ZoneMap({ zones, tags = [], robot, path, highlightZoneId, pick, onPick }: Props) {
+// 라벨 너비 대충 계산 (한글은 글자 크기만큼, 영문·숫자는 0.6배)
+const textWidth = (s: string, size: number) => [...s].reduce((w, ch) => w + (/[\u3131-\uD79D]/.test(ch) ? size : size * 0.6), 0);
+
+export function ZoneMap({ zones, tags = [], robot, path, highlightZoneId, pick, onPick, onTagClick, selectedTagId, fit = false }: Props) {
   const handleClick = (e: React.MouseEvent<SVGSVGElement>) => {
     if (!onPick) return;
     const r = e.currentTarget.getBoundingClientRect();
@@ -32,10 +39,16 @@ export function ZoneMap({ zones, tags = [], robot, path, highlightZoneId, pick, 
     onPick(Math.round(x * 100) / 100, Math.round(y * 100) / 100);
   };
 
-  return (
+  // 태그가 속한 구역의 오른쪽 끝 (없으면 지도 끝)
+  const rightEdge = (t: Tag) => {
+    const z = zones.find((zz) => zz.id === t.zoneId);
+    return z ? (z.rect[0] + z.rect[2]) * S - 6 : 400 - 6;
+  };
+
+  const svg = (
     <svg
       viewBox="0 0 400 300"
-      className={`w-full rounded-lg border border-slate-200 bg-white ${onPick ? "cursor-crosshair" : ""}`}
+      className={`rounded-lg border border-slate-200 bg-white ${fit ? "mx-auto block w-full lg:h-auto lg:w-[min(100cqw,133.33cqh)]" : "w-full"} ${onPick ? "cursor-crosshair" : ""}`}
       onClick={handleClick}
       role="img"
       aria-label="현장 평면도"
@@ -71,17 +84,27 @@ export function ZoneMap({ zones, tags = [], robot, path, highlightZoneId, pick, 
       <text x={3.3 * S} y={2.4 * S + 30} fontSize={10} textAnchor="middle" fill="#94a3b8">
         로봇 대기
       </text>
-      {path && path.length > 1 && (
-        <polyline points={path.map(([px, py]) => `${px * S},${py * S}`).join(" ")} fill="none" stroke="#f97316" strokeWidth={2} strokeDasharray="5 4" />
-      )}
-      {tags.map((t) => (
-        <g key={t.id}>
-          <circle cx={t.x * S} cy={t.y * S} r={7} fill={t.official ? "#dc2626" : "#f59e0b"} stroke="#fff" strokeWidth={2} />
-          <text x={t.x * S + 10} y={t.y * S + 4} fontSize={10} fill="#0f172a">
-            {t.title}
-          </text>
-        </g>
-      ))}
+      {path && path.length > 1 && <polyline points={path.map(([px, py]) => `${px * S},${py * S}`).join(" ")} fill="none" stroke="#f97316" strokeWidth={2} strokeDasharray="5 4" />}
+      {tags.map((t) => {
+        const left = t.x * S + 10 + textWidth(t.title, 10) > rightEdge(t); // 구역 밖으로 나가면 왼쪽에
+        const sel = selectedTagId === t.id;
+        return (
+          <g key={t.id} onClick={onTagClick ? (e) => (e.stopPropagation(), onTagClick(t.id)) : undefined} className={onTagClick ? "cursor-pointer" : undefined}>
+            {sel && <circle cx={t.x * S} cy={t.y * S} r={13} fill="none" stroke="#2563eb" strokeWidth={3} />}
+            <circle cx={t.x * S} cy={t.y * S} r={7} fill={t.official ? "#dc2626" : "#f59e0b"} stroke="#fff" strokeWidth={2} />
+            <text
+              x={left ? t.x * S - 10 : t.x * S + 10}
+              y={t.y * S + 4}
+              fontSize={10}
+              fontWeight={sel ? 700 : 400}
+              textAnchor={left ? "end" : "start"}
+              fill={sel ? "#1d4ed8" : "#0f172a"}
+            >
+              {t.title}
+            </text>
+          </g>
+        );
+      })}
       {pick && <circle cx={pick.x * S} cy={pick.y * S} r={8} fill="none" stroke="#2563eb" strokeWidth={3} />}
       {robot && (
         <g>
@@ -93,4 +116,8 @@ export function ZoneMap({ zones, tags = [], robot, path, highlightZoneId, pick, 
       )}
     </svg>
   );
+
+  if (!fit) return svg;
+  // 넓은 화면: 이 상자의 크기(cqw·cqh)를 기준으로 지도가 들어갈 만큼만 커진다
+  return <div className="lg:h-full lg:min-h-0 lg:[container-type:size]">{svg}</div>;
 }

@@ -5,7 +5,7 @@ import { AppShell } from "@/components/AppShell";
 import { PhoneFrame } from "@/components/PhoneFrame";
 import { StatusBadge } from "@/components/StatusBadge";
 import { usePolling } from "@/hooks/usePolling";
-import { DRAWING_KIND_LABEL, drawingMatchesTag, EVENT_LABEL, fmtDay, fmtRange, fmtDuration, fmtShort, fmtTime, secondsBetween, SOURCE_LABEL, workWarnings } from "@/lib/format";
+import { DISPATCH_STATUS_LABEL, DRAWING_KIND_LABEL, drawingMatchesTag, EVENT_LABEL, fmtDay, fmtRange, fmtDuration, fmtShort, fmtTime, secondsBetween, SOURCE_LABEL, workWarnings } from "@/lib/format";
 import { api } from "@/lib/api";
 import { useState } from "react";
 import { EQUIPMENT_STATE_LABEL } from "@/lib/templates";
@@ -219,7 +219,7 @@ export function WorkDetail() {
                         A-{a.id} · {SOURCE_LABEL[a.source]} · {fmtShort(a.raisedAt)}
                       </div>
                       <div className="text-xs text-slate-600">
-                        로봇 {d ? `${d.durationS.toFixed(1)}초 이동 (${d.status === "arrived" ? "도착" : "이동 중"})` : `출동 불가(${a.robotUnavailable ?? "-"})${a.humanDispatchedAt ? ` · 사람 출동 ${fmtTime(a.humanDispatchedAt)}` : ""}`} · 관제 확인{" "}
+                        로봇 {d ? `${d.durationS.toFixed(1)}초 이동 (${DISPATCH_STATUS_LABEL[d.status] ?? d.status})` : `출동 불가(${a.robotUnavailable ?? "-"})${a.humanDispatchedAt ? ` · 사람 출동 ${fmtTime(a.humanDispatchedAt)}` : ""}`} · 관제 확인{" "}
                         {a.acknowledgedAt ? fmtTime(a.acknowledgedAt) : "대기"} · 결과 {a.resolution === "false_alarm" ? "오탐 해제" : a.resolution === "handled" ? "처리 완료" : "진행 중"}
                       </div>
                     </li>

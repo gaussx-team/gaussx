@@ -23,28 +23,78 @@ export default function ControlPage() {
   const robotState = data ? `${robotSummary(data.robot)} · ${data.robot.battery}%` : "-";
 
   return (
-    <AppShell title="관제">
-      <div className="grid gap-4 lg:grid-cols-[1fr_380px]">
-        <section className="space-y-3">
-          {focus && <AlertBanner a={focus} zoneName={data?.zones.find((z) => z.id === focus.zoneId)?.name} onAck={() => post("/alert/ack", { alertId: focus.id })} onHuman={() => post("/alert/human", { alertId: focus.id })} onResolve={(r) => post("/alert/resolve", { alertId: focus.id, resolution: r })} />}
+    <AppShell title="관제" fill>
+      <div className="grid gap-4 lg:h-full lg:grid-cols-[1fr_380px]">
+        {/* 넓은 화면: 알림 배너가 생기면 지도가 그만큼 줄어서 전체가 한 화면에 남는다 */}
+        <section className="space-y-3 lg:flex lg:min-h-0 lg:flex-col lg:gap-3 lg:space-y-0">
+          {focus && (
+            <AlertBanner
+              a={focus}
+              zoneName={data?.zones.find((z) => z.id === focus.zoneId)?.name}
+              onAck={() => post("/alert/ack", { alertId: focus.id })}
+              onHuman={() => post("/alert/human", { alertId: focus.id })}
+              onResolve={(r) => post("/alert/resolve", { alertId: focus.id, resolution: r })}
+            />
+          )}
           {abnormals.map((a) => (
-            <AbnormalBanner key={a.id} a={a} zoneName={data?.zones.find((z) => z.id === a.zoneId)?.name} onAck={() => post("/alert/ack", { alertId: a.id })} onResolve={() => post("/alert/resolve", { alertId: a.id, resolution: "handled" })} />
+            <AbnormalBanner
+              key={a.id}
+              a={a}
+              zoneName={data?.zones.find((z) => z.id === a.zoneId)?.name}
+              onAck={() => post("/alert/ack", { alertId: a.id })}
+              onResolve={() => post("/alert/resolve", { alertId: a.id, resolution: "handled" })}
+            />
           ))}
-          <div className="card space-y-2">
+          <div className="card space-y-2 lg:flex lg:min-h-[260px] lg:flex-1 lg:flex-col">
             <div className="flex items-center gap-3 text-sm">
               <h2 className="font-bold">현장</h2>
               <Legend />
               <span className="ml-auto rounded-full bg-orange-100 px-2 py-0.5 text-xs font-semibold text-orange-700">로봇 · {robotState}</span>
             </div>
             {data ? (
-              <ZoneMap zones={data.zones} tags={data.tags} robot={data.robot} path={data.dispatch?.status === "moving" ? data.dispatch.path : null} highlightZoneId={focus?.zoneId ?? abnormals[0]?.zoneId} />
+              <div className="lg:min-h-0 lg:flex-1">
+                <ZoneMap
+                  fit
+                  zones={data.zones}
+                  tags={data.tags}
+                  robot={data.robot}
+                  path={data.dispatch?.status === "moving" ? data.dispatch.path : null}
+                  highlightZoneId={focus?.zoneId ?? abnormals[0]?.zoneId}
+                />
+              </div>
             ) : (
               <p className="py-20 text-center text-slate-500">{error ?? "불러오는 중…"}</p>
             )}
           </div>
-          {focus?.zoneId && (
-            <div className="card text-sm">
-              <h3 className="mb-1 font-bold text-red-700">{focus.zoneId} 위험 정보 (구조자 전달용)</h3>
+        </section>
+
+        <aside className="space-y-3 lg:flex lg:min-h-0 lg:flex-col lg:gap-3 lg:space-y-0">
+          <div className="card shrink-0">
+            <h2 className="mb-2 font-bold">진행 중인 작업</h2>
+            <ul className="space-y-1 text-sm lg:max-h-56 lg:overflow-y-auto">
+              {data?.works.filter(isOpen).map((w) => (
+                <li key={w.id}>
+                  <Link href={`/admin/works/${w.id}`} className="-mx-2 flex items-center gap-2 rounded px-2 py-1 hover:bg-slate-50">
+                    <span className="font-mono text-xs">{w.code}</span>
+                    <span className="truncate">{w.title}</span>
+                    <span className="ml-auto shrink-0 text-xs text-slate-500">
+                      {w.zoneId} · {w.checkedInAt ? (w.status === "confirmed" ? "작업 중" : "확인 중") : "체크인 전"} · {w.done}/{w.total}
+                    </span>
+                  </Link>
+                  {workWarnings(w, data.now).map((x) => (
+                    <div key={x.kind} className="text-right text-xs font-semibold text-amber-700">
+                      ⚠ {x.text}
+                    </div>
+                  ))}
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* 쓰러짐 알림 중에는 직접 출동이 막혀 있으니, 그 자리에 구조자에게 전할 위험 정보를 보여 준다 */}
+          {focus?.zoneId ? (
+            <div className="card shrink-0 border-red-200 text-sm lg:max-h-72 lg:overflow-y-auto">
+              <h3 className="mb-1 font-bold text-red-700">{data?.zones.find((z) => z.id === focus.zoneId)?.name ?? focus.zoneId} 위험 정보 (구조자 전달용)</h3>
               {data?.tags
                 .filter((t) => t.zoneId === focus.zoneId)
                 .map((t) => (
@@ -63,48 +113,31 @@ export default function ControlPage() {
                   ))}
               </div>
             </div>
-          )}
-        </section>
-
-        <aside className="space-y-3">
-          <div className="card">
-            <h2 className="mb-2 font-bold">진행 중인 작업</h2>
-            <ul className="space-y-1 text-sm">
-              {data?.works
-                .filter(isOpen)
-                .map((w) => (
-                  <li key={w.id}>
-                    <Link href={`/admin/works/${w.id}`} className="-mx-2 flex items-center gap-2 rounded px-2 py-1 hover:bg-slate-50">
-                      <span className="font-mono text-xs">{w.code}</span>
-                      <span className="truncate">{w.title}</span>
-                      <span className="ml-auto shrink-0 text-xs text-slate-500">
-                        {w.zoneId} · {w.checkedInAt ? (w.status === "confirmed" ? "작업 중" : "확인 중") : "체크인 전"} · {w.done}/{w.total}
-                      </span>
-                    </Link>
-                    {workWarnings(w, data.now).map((x) => (
-                      <div key={x.kind} className="text-right text-xs font-semibold text-amber-700">
-                        ⚠ {x.text}
-                      </div>
-                    ))}
-                  </li>
+          ) : (
+            <div className="card shrink-0">
+              <h2 className="mb-2 font-bold">직접 출동</h2>
+              <div className="flex gap-2">
+                {data?.zones.map((z) => (
+                  <button
+                    key={z.id}
+                    className="btn-ghost flex-1"
+                    disabled={open.length > 0 || !data?.robot.available}
+                    onClick={() => window.confirm(`${z.name} 로 로봇을 보낼까요?`) && post("/event", { source: "operator", zoneId: z.id })}
+                  >
+                    {z.id}
+                  </button>
                 ))}
-            </ul>
-          </div>
-
-          <div className="card">
-            <h2 className="mb-2 font-bold">직접 출동</h2>
-            <div className="flex gap-2">
-              {data?.zones.map((z) => (
-                <button key={z.id} className="btn-ghost flex-1" disabled={open.length > 0 || !data?.robot.available} onClick={() => window.confirm(`${z.name} 로 로봇을 보낼까요?`) && post("/event", { source: "operator", zoneId: z.id })}>
-                  {z.id}
-                </button>
-              ))}
+              </div>
             </div>
-          </div>
-
-          <div className="card">
-            <div className="mb-2 flex items-center"><h2 className="font-bold">오늘 타임라인</h2><Link href="/history" className="ml-auto text-xs text-blue-600">전체 이력 →</Link></div>
-            <ol className="max-h-80 space-y-1 overflow-y-auto text-xs">
+          )}
+          <div className="card lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
+            <div className="mb-2 flex items-center">
+              <h2 className="font-bold">오늘 타임라인</h2>
+              <Link href="/history" className="ml-auto text-xs text-blue-600">
+                전체 이력 →
+              </Link>
+            </div>
+            <ol className="max-h-80 space-y-1 overflow-y-auto text-xs lg:max-h-none lg:min-h-0 lg:flex-1">
               {data?.events.map((e) => (
                 <li key={e.seq} className="flex gap-2">
                   <span className="shrink-0 font-mono text-slate-400">{fmtTime(e.at)}</span>
@@ -114,14 +147,25 @@ export default function ControlPage() {
               ))}
             </ol>
           </div>
-
         </aside>
       </div>
     </AppShell>
   );
 }
 
-function AlertBanner({ a, zoneName, onAck, onHuman, onResolve }: { a: Alert; zoneName?: string; onAck: () => void; onHuman: () => void; onResolve: (r: "handled" | "false_alarm") => void }) {
+function AlertBanner({
+  a,
+  zoneName,
+  onAck,
+  onHuman,
+  onResolve,
+}: {
+  a: Alert;
+  zoneName?: string;
+  onAck: () => void;
+  onHuman: () => void;
+  onResolve: (r: "handled" | "false_alarm") => void;
+}) {
   const noRobot = a.status === "no_robot";
   return (
     <div className="flex flex-wrap items-center gap-3 rounded-xl bg-red-600 p-4 text-white shadow">
@@ -176,8 +220,18 @@ function AbnormalBanner({ a, zoneName, onAck, onResolve }: { a: Alert; zoneName?
           {zoneName ?? a.zoneId} · {r?.tagTitle} {r?.item}
         </div>
         <div className="text-sm">
-          측정값 <b>{r?.value}{r?.unit}</b> · 정상 {r?.range}
-          {r?.recheckedAt && <span className="ml-2 text-emerald-700">→ 재측정 {r.recheckedValue}{r.unit} 정상 ({fmtTime(r.recheckedAt)})</span>}
+          측정값{" "}
+          <b>
+            {r?.value}
+            {r?.unit}
+          </b>{" "}
+          · 정상 {r?.range}
+          {r?.recheckedAt && (
+            <span className="ml-2 text-emerald-700">
+              → 재측정 {r.recheckedValue}
+              {r.unit} 정상 ({fmtTime(r.recheckedAt)})
+            </span>
+          )}
         </div>
         <div className="text-xs opacity-80">로봇 출동 없음 · 작업 시작은 막혀 있어요 (정상값이 확인될 때까지)</div>
       </div>
