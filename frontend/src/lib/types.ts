@@ -126,8 +126,11 @@ export interface Dispatch {
   durationS: number;
   startedAt: string;
   endedAt?: string | null;
-  status: "moving" | "arrived";
+  // planning·failed·cancelled 는 백엔드만 보낸다 (경로 계산 중 / 도달 실패 → 사람 출동 / 가는 중 알림 종료)
+  status: DispatchStatus;
 }
+
+export type DispatchStatus = "planning" | "moving" | "arrived" | "failed" | "cancelled";
 
 export interface EventLog {
   seq: number;

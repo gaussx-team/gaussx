@@ -14,6 +14,27 @@ body {
   word-break: keep-all;
 }
 
+/* Tailwind v4 는 버튼 커서를 기본(화살표)으로 둔다 → 누를 수 있는 건 손가락, 못 누르는 건 금지 표시 */
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  select:not(:disabled),
+  summary,
+  label:has(> input[type="checkbox"]:not(:disabled)),
+  label:has(> input[type="radio"]:not(:disabled)),
+  input[type="checkbox"]:not(:disabled),
+  input[type="radio"]:not(:disabled),
+  input[type="file"]:not(:disabled) {
+    cursor: pointer;
+  }
+  button:disabled,
+  select:disabled,
+  input:disabled,
+  [aria-disabled="true"] {
+    cursor: not-allowed;
+  }
+}
+
 @utility card {
   @apply rounded-xl border border-slate-200 bg-white p-4 shadow-sm;
 }

@@ -39,7 +39,7 @@ export function HistoryView() {
     <AppShell
       title="이력"
       actions={
-        <button className="btn-ghost" disabled={!events.length} onClick={() => downloadCsv(events, allDays ? "전체" : (data?.day ?? ""))}>
+        <button className="btn-ghost" disabled={!events.length} onClick={() => downloadCsv(events, allDays ? "all" : (data?.day ?? ""))}>
           CSV 내보내기
         </button>
       }
@@ -170,7 +170,10 @@ function downloadCsv(events: HistoryEvent[], label: string) {
   const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
   const a = document.createElement("a");
   a.href = url;
-  a.download = `gaussx-이력-${label}.csv`;
+  a.download = `gaussx-history-${label}.csv`; // 한글 파일 이름은 브라우저에 따라 "download" 로 바뀌어서 영문으로
+  // 문서에 붙였다가 누르고, 주소는 다운로드가 시작된 뒤에 지운다 (바로 지우면 Safari·Firefox 에서 이름이 깨지거나 실패)
+  document.body.appendChild(a);
   a.click();
-  URL.revokeObjectURL(url);
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }

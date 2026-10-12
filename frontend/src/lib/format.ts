@@ -1,4 +1,4 @@
-import type { AlertSource, CheckItem, EventCategory, Needs, RobotMode, RobotView, Work, WorkStatus } from "./types";
+import type { AlertSource, CheckItem, DispatchStatus, EventCategory, Needs, RobotMode, RobotView, Work, WorkStatus } from "./types";
 
 export const TZ = "Asia/Seoul";
 
@@ -22,6 +22,14 @@ export const WORK_STATUS_LABEL: Record<WorkStatus, string> = {
   confirmed: "작업 중",
   ended: "종료",
   cancelled: "취소",
+};
+
+export const DISPATCH_STATUS_LABEL: Record<DispatchStatus, string> = {
+  planning: "경로 계산 중",
+  moving: "이동 중",
+  arrived: "도착",
+  failed: "도달 실패",
+  cancelled: "중간에 멈춤",
 };
 
 export const SOURCE_LABEL: Record<AlertSource, string> = {
@@ -54,6 +62,7 @@ export const EVENT_LABEL: Record<string, string> = {
   "alert.raised": "쓰러짐 알림",
   "dispatch.started": "로봇 출동",
   "dispatch.arrived": "로봇 도착",
+  "dispatch.failed": "로봇 도달 실패",
   "alert.acknowledged": "관제 확인",
   "alert.resolved": "알림 종료",
   "dispatch.unavailable": "로봇 출동 불가",
