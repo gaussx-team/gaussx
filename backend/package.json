@@ -1,0 +1,36 @@
+{
+  "name": "gaussx-backend",
+  "version": "0.2.0",
+  "private": true,
+  "description": "GaussX 백엔드 — NestJS + PostgreSQL. API 는 docs/api.md (프론트 목업과 같은 계약)",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/src/main.js",
+    "dev": "npm run build && node dist/src/main.js",
+    "session:new": "npm run build && node dist/src/session-cli.js",
+    "test": "npm run build && node --test --test-reporter=spec \"dist/test/*.test.js\""
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "0.4.6",
+    "@nestjs/common": "12.1.2",
+    "@nestjs/core": "12.1.2",
+    "@nestjs/platform-express": "12.1.2",
+    "@nestjs/swagger": "12.0.2",
+    "class-transformer": "0.5.1",
+    "class-validator": "0.15.1",
+    "pg": "8.23.1",
+    "reflect-metadata": "0.2.2",
+    "rxjs": "7.8.2"
+  },
+  "devDependencies": {
+    "@types/express": "5.0.6",
+    "@types/multer": "2.3.0",
+    "@types/node": "22.20.5",
+    "@types/pg": "8.23.1",
+    "typescript": "6.0.3"
+  }
+}
