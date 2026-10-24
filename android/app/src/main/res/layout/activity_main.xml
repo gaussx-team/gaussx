@@ -1,0 +1,218 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#FFFFFF"
+    android:fitsSystemWindows="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/app_name"
+            android:textColor="#1F4E79"
+            android:textSize="24sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/intro"
+            style="@style/Hint"
+            android:text="한 폰은 작업자의 헬멧 비콘, 다른 폰은 구역에 두는 수신기로 써요. 수신기가 1초마다 백엔드에 보고하면 관제가 누가 그 구역 안에 있는지 알아요. 수신기를 두 대 두면 수신기 화면 레이더에 헬멧의 방향과 거리가 나와요. 위치 기록은 남기지 않아요." />
+
+        <!-- 설정: 동작 중에는 접는다 (레이더가 위로 오게) -->
+        <LinearLayout
+            android:id="@+id/form"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <TextView
+                style="@style/Label"
+                android:text="역할" />
+
+            <RadioGroup
+                android:id="@+id/role"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <RadioButton
+                    android:id="@+id/roleBeacon"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="헬멧 비콘 — 작업자 폰 (광고만, 서버 연결 없음)" />
+
+                <RadioButton
+                    android:id="@+id/roleReceiver"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="수신기 — 구역에 두는 폰 (스캔 → 1초마다 백엔드로)" />
+            </RadioGroup>
+
+            <TextView
+                style="@style/Label"
+                android:text="비콘 UUID (모든 폰이 같아야 해요)" />
+
+            <EditText
+                android:id="@+id/uuid"
+                style="@style/Field"
+                android:inputType="textNoSuggestions"
+                android:textSize="14sp"
+                android:typeface="monospace" />
+
+            <LinearLayout
+                android:id="@+id/beaconBox"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <TextView
+                    style="@style/Label"
+                    android:text="major · minor (이 헬멧의 번호)" />
+
+                <TextView
+                    style="@style/Hint"
+                    android:text="백엔드 demo.json 의 devices[].beacon_id 와 맞춰요. 개발용 씬: 단말 1번 = 1 · 1, 단말 2번 = 1 · 2" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+
+                    <EditText
+                        android:id="@+id/major"
+                        style="@style/Field"
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:hint="major"
+                        android:inputType="number" />
+
+                    <EditText
+                        android:id="@+id/minor"
+                        style="@style/Field"
+                        android:layout_width="0dp"
+                        android:layout_marginStart="12dp"
+                        android:layout_weight="1"
+                        android:hint="minor"
+                        android:inputType="number" />
+                </LinearLayout>
+
+                <TextView
+                    style="@style/Label"
+                    android:text="광고 세기" />
+
+                <TextView
+                    style="@style/Hint"
+                    android:text="세기를 바꾸면 수신기에서 재는 값도 바뀌어요. 판정 기준은 백엔드 demo.json 의 locate" />
+
+                <Spinner
+                    android:id="@+id/txLevel"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/receiverBox"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <TextView
+                    style="@style/Label"
+                    android:text="백엔드 주소" />
+
+                <TextView
+                    style="@style/Hint"
+                    android:text="노트북 IP:3001 — 백엔드를 켜면 콘솔에 찍혀요. 폰과 노트북이 같은 와이파이여야 해요" />
+
+                <EditText
+                    android:id="@+id/server"
+                    style="@style/Field"
+                    android:inputType="textUri" />
+
+                <TextView
+                    style="@style/Label"
+                    android:text="수신기 id" />
+
+                <TextView
+                    style="@style/Hint"
+                    android:text="백엔드 demo.json 의 gateways[].id (개발용 씬: gw-01 = 수신기 1, gw-02 = 수신기 2). 실제로 놓은 자리는 관리자 화면 ‘수신기 배치’에서 맞춰요" />
+
+                <EditText
+                    android:id="@+id/gateway"
+                    style="@style/Field"
+                    android:inputType="textNoSuggestions" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <Button
+            android:id="@+id/toggle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:text="시작"
+            android:textAllCaps="false"
+            android:textSize="17sp" />
+
+        <!-- 레이더: 수신기가 동작 중일 때만 -->
+        <LinearLayout
+            android:id="@+id/radarBox"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <team.gaussx.beacon.RadarView
+                android:id="@+id/radar"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal" />
+
+            <TextView
+                android:id="@+id/radarInfo"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:lineSpacingExtra="3dp"
+                android:textColor="#222222"
+                android:textSize="15sp" />
+
+            <Button
+                android:id="@+id/calibrate"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="1m 보정 (헬멧을 이 수신기 1m 앞에 두고)"
+                android:textAllCaps="false" />
+
+            <TextView
+                style="@style/Hint"
+                android:text="거리는 신호 세기로 어림잡은 값이라 실내에서 ±50% 정도 틀려요. 1m 보정을 하면 나아져요 (길게 누르면 보정을 지워요). 방향은 수신기 두 대가 모두 들을 때 나와요 — 두 수신기는 구역 한쪽 끝에 나란히, 구역을 바라보게 두고, 놓은 자리를 관리자 화면 ‘수신기 배치’에서 실제와 같게 맞춰 주세요." />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/headline"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="18dp"
+            android:textColor="#1F4E79"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/detail"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:lineSpacingExtra="2dp"
+            android:textColor="#222222"
+            android:textIsSelectable="true"
+            android:textSize="13sp"
+            android:typeface="monospace" />
+    </LinearLayout>
+</ScrollView>
