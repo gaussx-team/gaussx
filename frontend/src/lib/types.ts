@@ -168,6 +168,45 @@ export interface RobotView {
   available: boolean; // 지금 알림이 오면 바로 출동할 수 있는지
 }
 
+// 헬멧 비콘 (⚠️ 잠정 — 백엔드만, 목업에는 없다). 구역 안/밖 판정 + 수신기 두 대가 들으면 바닥 위치
+export interface Presence {
+  deviceId: string;
+  label: string;
+  beaconId: string | null;
+  state: "in" | "out" | "unknown"; // 수신기 구역 안 · 밖 · 신호 없음
+  zoneId: string | null;
+  gatewayId: string | null;
+  rssi: number | null;
+  since: string | null;
+  lastSeen: string | null;
+  position?: { x: number; y: number; err: number } | null; // 바닥 m (신호 세기로 어림 ±50%, 오차 반지름 err)
+}
+
+// 비콘 수신기 설정 (관리자 화면 '수신기 배치' — 백엔드만). 바꾸면 백엔드 .data/gateways.json 에 남는다
+export interface GatewaySetting {
+  id: string;
+  label: string;
+  zoneId: string; // 이 수신기가 지키는 구역
+  x: number; // 바닥 m (실제로 놓은 자리)
+  y: number;
+  z: number;
+  ref1mDbm: number | null; // 1m 세기 (dBm). null = 자동 (비콘이 알린 값)
+  custom: boolean; // 씬 값에서 바꿨는지
+  defaults: { zoneId: string; x: number; y: number; z: number; ref1mDbm: number | null };
+  online: boolean;
+  lastReportAt: string | null;
+}
+
+// 비콘 수신기 (구역에 둔 폰)
+export interface GatewayView {
+  id: string;
+  zoneId: string;
+  label: string;
+  x?: number; // 바닥 m
+  y?: number;
+  online: boolean;
+  lastReportAt: string | null;
+}
 
 export interface StateResponse {
   now: string;
@@ -178,6 +217,8 @@ export interface StateResponse {
   dispatch: Dispatch | null;
   robot: RobotView;
   events: EventLog[];
+  presence?: Presence[]; // 백엔드만 (헬멧 비콘)
+  gateways?: GatewayView[];
 }
 
 export interface CardResponse {

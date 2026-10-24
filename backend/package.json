@@ -12,6 +12,7 @@
     "start": "node dist/src/main.js",
     "dev": "npm run build && node dist/src/main.js",
     "session:new": "npm run build && node dist/src/session-cli.js",
+    "sim:gateways": "node scripts/sim-gateways.mjs",
     "test": "npm run build && node --test --test-reporter=spec \"dist/test/*.test.js\""
   },
   "dependencies": {

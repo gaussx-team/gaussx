@@ -18,7 +18,7 @@ export class AlertsController {
   @ApiOperation({
     summary: '쓰러짐 (수동 SOS · 자동 감지 · 관제 직접 출동 · 무대 트리거)',
     description:
-      '알림과 동시에 로봇이 출발한다. 구역: zoneId → 그 단말의 작업 중 구역 → 불명. 로봇이 못 가면 status = no_robot (사람 출동 필요)',
+      '알림과 동시에 로봇이 출발한다. 구역: zoneId → 헬멧 비콘이 들어가 있는 구역 → 그 단말의 작업 중 구역 → 불명 (어디서 정했는지 zoneSource). 로봇이 못 가면 status = no_robot (사람 출동 필요)',
   })
   event(@Body() body: EventBody) {
     return this.alerts.raiseFall({

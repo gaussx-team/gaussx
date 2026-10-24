@@ -102,7 +102,7 @@ export class EventBody {
   @IsOptional() @IsIn(['sos_button', 'accel', 'operator', 'debug'])
   source?: 'sos_button' | 'accel' | 'operator' | 'debug';
   @ApiPropertyOptional({ example: 'device-01' }) @IsOptional() @IsString() deviceId?: string | null;
-  @ApiPropertyOptional({ example: 'Z1', description: '비우면 그 단말의 작업 중 구역' }) @IsOptional() @IsString() zoneId?: string | null;
+  @ApiPropertyOptional({ example: 'Z1', description: '비우면 헬멧 비콘이 들어가 있는 구역 → 그 단말의 작업 중 구역' }) @IsOptional() @IsString() zoneId?: string | null;
   @ApiPropertyOptional({ example: 0.91 }) @IsOptional() @IsNumber(NUM) @Min(0) @Max(1) confidence?: number;
   @ApiPropertyOptional({ example: { freefall_ms: 480, peak_g: 4.7 } }) @IsOptional() @IsObject() signal?: Record<string, unknown>;
   @ApiPropertyOptional({ description: '가속도 [[t, g], ...]' }) @IsOptional() @IsArray() @ArrayMaxSize(2000) buffer?: unknown[];
@@ -132,6 +132,43 @@ export class DrawingBody {
   @ApiPropertyOptional({ example: 'application/pdf' }) @IsOptional() @IsString() mime?: string | null;
   @ApiPropertyOptional({ description: '파일 내용 base64 (20MB 까지)' }) @IsOptional() @IsString() dataBase64?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(500) note?: string | null;
+}
+
+// ── 비콘 수신기 ───────────────────────────────────────────────────
+export class GatewayReadingBody {
+  @ApiProperty({ example: '9d299ff3-5431-40e6-85d6-4ac08806000e:1:1', description: 'iBeacon "uuid:major:minor"' })
+  @IsString() @MaxLength(80) beaconId: string;
+  @ApiProperty({ example: [-61, -63, -60], description: '지난 1초 동안 받은 RSSI (dBm)' })
+  @IsArray() @ArrayMaxSize(200) @IsNumber(NUM, { each: true }) rssi: number[];
+  @ApiPropertyOptional({ example: -59, description: '비콘이 알린 1m 기준 세기 (참고용)' })
+  @IsOptional() @IsNumber(NUM) txPower?: number;
+}
+
+export class GatewayBody {
+  @ApiProperty({ example: 'gw-01' }) @IsString() @MaxLength(50) gatewayId: string;
+  @ApiProperty({ type: [GatewayReadingBody], description: '비어 있어도 된다 (수신기가 살아 있다는 신호)' })
+  @IsArray() @ArrayMaxSize(50) @ValidateNested({ each: true }) @Type(() => GatewayReadingBody)
+  readings: GatewayReadingBody[];
+}
+
+export class RadarQuery {
+  @ApiProperty({ example: 'gw-01', description: '이 수신기 기준으로 (x = 오른쪽, y = 앞 · 구역 쪽)' }) @IsString() @MaxLength(50) gateway: string;
+}
+
+export class CalibrateBody {
+  @ApiProperty({ example: 'gw-01' }) @IsString() @MaxLength(50) gatewayId: string;
+  @ApiPropertyOptional({ description: '이 비콘으로 (비우면 이 수신기에 가장 세게 들리는 비콘)' }) @IsOptional() @IsString() @MaxLength(80) beaconId?: string;
+  @ApiPropertyOptional({ description: 'true 면 보정을 지운다' }) @IsOptional() @IsBoolean() reset?: boolean;
+}
+
+export class GatewaySettingsBody {
+  @ApiProperty({ example: 'gw-02' }) @IsString() @MaxLength(50) gatewayId: string;
+  @ApiPropertyOptional({ example: 'Z1', description: '이 수신기가 지키는 구역' }) @IsOptional() @IsString() @MaxLength(50) zoneId?: string;
+  @ApiPropertyOptional({ example: 3, description: '바닥 x (m) — 실제로 놓은 자리' }) @IsOptional() @IsNumber(NUM) x?: number;
+  @ApiPropertyOptional({ example: 1.5, description: '바닥 y (m)' }) @IsOptional() @IsNumber(NUM) y?: number;
+  @ApiPropertyOptional({ example: -58, nullable: true, description: '1m 세기 (dBm). null = 이 수신기만의 값 없음 (공통 값 · 비콘이 알린 값)' })
+  @IsOptional() @IsNumber(NUM) ref1mDbm?: number | null;
+  @ApiPropertyOptional({ description: 'true 면 이 수신기를 씬 값으로 되돌린다' }) @IsOptional() @IsBoolean() reset?: boolean;
 }
 
 export class IdQuery {

@@ -1,13 +1,21 @@
 {
   "site": { "id": "demo", "name": "데모 현장" },
   "devices": [
-    { "id": "device-01", "label": "단말 1번" },
-    { "id": "device-02", "label": "단말 2번" }
+    { "id": "device-01", "label": "단말 1번", "beacon_id": "9d299ff3-5431-40e6-85d6-4ac08806000e:1:1" },
+    { "id": "device-02", "label": "단말 2번", "beacon_id": "9d299ff3-5431-40e6-85d6-4ac08806000e:1:2" }
   ],
   "zones": [
     { "id": "Z1", "name": "1구역 · 배관", "rect": [0, 0, 2, 1.5] },
     { "id": "Z2", "name": "2구역 · 탱크", "rect": [2, 0, 2, 1.5] },
     { "id": "Z3", "name": "3구역 · 전기실", "rect": [0, 1.5, 2, 1.5] }
   ],
+  "gateways": [
+    { "id": "gw-01", "zone": "Z1", "label": "수신기 1", "world": [0, 1.5, 1] },
+    { "id": "gw-02", "zone": "Z1", "label": "수신기 2", "world": [2, 1.5, 1] }
+  ],
+  "locate": {
+    "window_s": 1.5, "enter_dbm": -70, "exit_margin_db": 6, "switch_db": 6, "hold_s": 2, "timeout_s": 4,
+    "path_loss_n": 2.5, "ref_1m_dbm": null
+  },
   "robot": { "id": "R-01", "battery": 82 }
 }

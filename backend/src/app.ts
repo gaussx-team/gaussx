@@ -28,6 +28,9 @@ import { DebugController } from './debug/debug.controller.js';
 import { DispatchService } from './dispatch/dispatch.service.js';
 import { DrawingsController } from './drawings/drawings.controller.js';
 import { DrawingsService } from './drawings/drawings.service.js';
+import { applyGatewayFile, GatewaySettings } from './locate/gateway-settings.service.js';
+import { LocateController } from './locate/locate.controller.js';
+import { LocateService } from './locate/locate.service.js';
 import { MediaController } from './media/media.controller.js';
 import { MediaService } from './media/media.service.js';
 import { Seeder } from './seed/seeder.js';
@@ -53,12 +56,13 @@ class DbLifecycle implements OnApplicationShutdown {
 @Module({})
 class CoreModule {
   static forRoot(settings: Settings): DynamicModule {
-    const shared = [EventsService, ConfigSync, Seeder, SessionService, MediaService, ComputeClient, DispatchService];
+    const shared = [EventsService, ConfigSync, Seeder, SessionService, MediaService, ComputeClient, DispatchService, LocateService, GatewaySettings];
     return {
       module: CoreModule,
       providers: [
         { provide: SETTINGS, useValue: settings },
-        { provide: SCENE, useFactory: () => loadScene(settings.sceneDir) },
+        // 씬 파일 + 관리자 화면에서 바꾼 수신기 설정(.data/gateways.json)
+        { provide: SCENE, useFactory: () => applyGatewayFile(loadScene(settings.sceneDir), settings.gatewaysFile) },
         { provide: DB, useFactory: () => openDb(settings) },
         DbLifecycle,
         ...shared,
@@ -81,6 +85,7 @@ export class AppModule {
         AlertsController,
         DrawingsController,
         MediaController,
+        LocateController,
         DebugController,
       ],
       providers: [TagsService, WorksService, AlertsService, DrawingsService, StateService],

@@ -28,13 +28,65 @@ export interface Route {
 
 export type DeviceKind = 'phone' | 'helmet_beacon' | 'uwb_tag';
 
+/** 비콘 구역 판정 값 (demo.json "locate"). 현장에서 RSSI 를 재 보고 고친다 */
+export interface LocateParams {
+  /** 이 시간 안의 RSSI 중앙값으로 판정 (초) */
+  windowS: number;
+  /** 이 세기 이상이면 '구역 안' (dBm) */
+  enterDbm: number;
+  /** 안에 있다가 enterDbm 보다 이만큼 약해지면 '밖' — 문턱 근처에서 깜빡이지 않게 (dB) */
+  exitMarginDb: number;
+  /** 다른 수신기가 이만큼 더 세면 그 구역으로 바뀐다 (dB) */
+  switchDb: number;
+  /** 들어옴 · 나감 · 바뀜이 이 시간 이어져야 확정 (초) */
+  holdS: number;
+  /** 이 시간 동안 신호가 없으면 '알 수 없음' (초) */
+  timeoutS: number;
+  /** 거리 어림(레이더): 감쇠 지수 — 자유 공간 2, 실내 2.5~3.5 */
+  pathLossN: number;
+  /** 거리 어림: 1m 에서의 세기 (dBm). null 이면 비콘이 알린 값(iBeacon txPower), 그것도 없으면 -59 */
+  ref1mDbm: number | null;
+}
+
+export const DEFAULT_LOCATE: LocateParams = {
+  windowS: 1.5,
+  enterDbm: -70,
+  exitMarginDb: 6,
+  switchDb: 6,
+  holdS: 2,
+  timeoutS: 4,
+  pathLossN: 2.5,
+  ref1mDbm: null,
+};
+
+/** iBeacon 식별자 "uuid:major:minor" (소문자) */
+export const BEACON_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:[0-9]{1,5}:[0-9]{1,5}$/;
+
+/** 비콘 id 를 한 모양으로: 소문자 · major · minor 는 앞자리 0 없이 (0~65535). 형식이 아니면 null */
+export function normalizeBeaconId(v: string): string | null {
+  const t = v.trim().toLowerCase();
+  if (!BEACON_ID.test(t)) return null;
+  const [uuid, major, minor] = t.split(':');
+  const ma = Number(major);
+  const mi = Number(minor);
+  return ma <= 0xffff && mi <= 0xffff ? `${uuid}:${ma}:${mi}` : null;
+}
+
 export interface Scene {
   dir: string;
   site: { id: string; name: string };
   scan: { id: string; capturedAt: string | null; originMarkerId: number | null };
   /** rect = [x, y, w, h] (m). 화면 표시용 사각형 — 잠정: 3D 연동 때 다각형으로 재결정 */
   zones: { id: string; name: string; color: string | null; sort: number; rect: [number, number, number, number] | null }[];
-  devices: { id: string; label: string; kind: DeviceKind; mac: string | null }[];
+  /** beaconId = 이 단말(헬멧)이 내는 iBeacon "uuid:major:minor". 비콘을 안 쓰면 null */
+  devices: { id: string; label: string; kind: DeviceKind; mac: string | null; beaconId: string | null }[];
+  /**
+   * 고정 수신기(게이트웨이). 헬멧 비콘을 듣고 1초마다 POST /api/gateway 로 보낸다. 구역마다 1대 이상.
+   * 같은 구역에 2대 이상이면 레이더가 헬멧 위치(방향 + 거리)를 계산한다 — world 는 실제로 잰 자리 (m).
+   * ref1mDbm = 이 수신기 폰에서 잰 1m 세기 (폰마다 다르다. null 이면 locate.ref1mDbm)
+   */
+  gateways: { id: string; zone: string; label: string; world: [number, number, number]; ref1mDbm: number | null }[];
+  locate: LocateParams;
   /** 고정 비콘. 데모 범위 밖 (실시간 위치는 로드맵) */
   anchors: {
     id: string;
@@ -127,14 +179,65 @@ export function loadScene(dir: string): Scene {
     if (!['phone', 'helmet_beacon', 'uwb_tag'].includes(kind)) {
       fail(`${where}.kind`, `phone · helmet_beacon · uwb_tag 중 하나여야 합니다: ${String(kind)}`);
     }
+    const rawBeacon = d.beacon_id == null ? null : str(d.beacon_id, `${where}.beacon_id`);
+    const beaconId =
+      rawBeacon === null
+        ? null
+        : (normalizeBeaconId(rawBeacon) ??
+          fail(`${where}.beacon_id`, `iBeacon "uuid:major:minor" 형식이어야 합니다 (major · minor 는 0~65535): ${rawBeacon}`));
     return {
       id: str(d.id, `${where}.id`),
       label: str(d.label, `${where}.label`),
       kind,
       mac: d.mac == null ? null : str(d.mac, `${where}.mac`),
+      beaconId,
     };
   });
   if (!devices.length) fail(at('devices'), '단말이 하나 이상 있어야 합니다');
+  const beaconIds = devices.map((d) => d.beaconId).filter((b): b is string => !!b);
+  if (new Set(beaconIds).size !== beaconIds.length) fail(at('devices'), '두 단말이 같은 beacon_id 를 쓰고 있습니다');
+
+  // 수신기: 구역마다 1대 이상. 위치를 안 주면 구역 사각형 가운데 · 바닥 위 1m
+  const gateways = (demo.gateways === undefined ? [] : list(demo.gateways, at('gateways'))).map((v, i) => {
+    const where = at(`gateways[${i}]`);
+    const g = obj(v, where);
+    const zone = zoneRef(g.zone, `${where}.zone`) ?? fail(`${where}.zone`, '수신기가 지키는 구역이 필요합니다');
+    const rect = zones.find((z) => z.id === zone)!.rect;
+    const world =
+      g.world !== undefined
+        ? (nums(g.world, 3, `${where}.world`) as [number, number, number])
+        : ([rect ? rect[0] + rect[2] / 2 : 0, rect ? rect[1] + rect[3] / 2 : 0, 1.0] as [number, number, number]);
+    const ref1mDbm = g.ref_1m_dbm == null ? null : num(g.ref_1m_dbm, `${where}.ref_1m_dbm`);
+    if (ref1mDbm !== null && (ref1mDbm >= 0 || ref1mDbm < -120)) fail(`${where}.ref_1m_dbm`, `-120 ~ 0 (dBm) 이어야 합니다: ${ref1mDbm}`);
+    return {
+      id: str(g.id, `${where}.id`),
+      zone,
+      label: g.label == null ? str(g.id, `${where}.id`) : str(g.label, `${where}.label`),
+      world,
+      ref1mDbm,
+    };
+  });
+  if (new Set(gateways.map((g) => g.id)).size !== gateways.length) fail(at('gateways'), '수신기 id 가 겹칩니다');
+
+  const lc = demo.locate === undefined ? {} : obj(demo.locate, at('locate'));
+  const pick = (key: string, fallback: number) => (lc[key] === undefined ? fallback : num(lc[key], at(`locate.${key}`)));
+  const locate: LocateParams = {
+    windowS: pick('window_s', DEFAULT_LOCATE.windowS),
+    enterDbm: pick('enter_dbm', DEFAULT_LOCATE.enterDbm),
+    exitMarginDb: pick('exit_margin_db', DEFAULT_LOCATE.exitMarginDb),
+    switchDb: pick('switch_db', DEFAULT_LOCATE.switchDb),
+    holdS: pick('hold_s', DEFAULT_LOCATE.holdS),
+    timeoutS: pick('timeout_s', DEFAULT_LOCATE.timeoutS),
+    pathLossN: pick('path_loss_n', DEFAULT_LOCATE.pathLossN),
+    ref1mDbm: lc.ref_1m_dbm == null ? DEFAULT_LOCATE.ref1mDbm : num(lc.ref_1m_dbm, at('locate.ref_1m_dbm')),
+  };
+  if (locate.windowS <= 0 || locate.holdS < 0 || locate.timeoutS <= locate.windowS) {
+    fail(at('locate'), 'window_s > 0, hold_s ≥ 0, timeout_s > window_s 여야 합니다');
+  }
+  if (locate.pathLossN < 1 || locate.pathLossN > 6) fail(at('locate.path_loss_n'), `1 ~ 6 이어야 합니다 (자유 공간 2, 실내 2.5~3.5): ${locate.pathLossN}`);
+  if (locate.ref1mDbm !== null && (locate.ref1mDbm >= 0 || locate.ref1mDbm < -120)) {
+    fail(at('locate.ref_1m_dbm'), `-120 ~ 0 (dBm) 이어야 합니다: ${locate.ref1mDbm}`);
+  }
 
   // scan: 씬 폴더 1개 = 좌표계 1개. 파일이 없으면 폴더 이름을 id 로 쓴다
   const capture = readJson(join(dir, 'capture.json'));
@@ -211,7 +314,7 @@ export function loadScene(dir: string): Scene {
   if (!routes) notes.push('routes.json(사전 계산표)이 없습니다: 계산 서비스가 응답하지 않으면 로봇이 출동하지 못합니다');
 
   const seed = join(demoDir, 'seed.json');
-  return { dir, site, scan, zones, devices, anchors, robot, routes, seedPath: existsSync(seed) ? seed : null, notes };
+  return { dir, site, scan, zones, devices, gateways, locate, anchors, robot, routes, seedPath: existsSync(seed) ? seed : null, notes };
 }
 
 function parseRoutes(file: Json, zoneIds: Set<string>): NonNullable<Scene['routes']> {

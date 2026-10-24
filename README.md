@@ -7,6 +7,7 @@
 | `frontend/` | Next.js 웹 (담당자 · 작업반장 카드 · 관제) | 문정 |
 | `backend/` | NestJS + PostgreSQL | 현령 |
 | `3dgs/` | 3DGS 처리 코드 (결과 파일은 커밋하지 않음) | 건우 |
+| `android/` | 폰 앱: 헬멧 비콘 · 구역 수신기 (⚠️ 잠정 — 비콘 구역은 팀 합의 전) | 합의 전 |
 | `docs/` | 기준 문서(SPEC) · API 약속 · ERD | 공통 |
 
 - 규칙: [CONVENTION.md](CONVENTION.md)
@@ -23,6 +24,7 @@
 cd backend && npm install && npm run dev
 # 3. frontend (3000) — frontend/.env.local 에 NEXT_PUBLIC_API_BASE_URL=http://localhost:3001 (비우면 Next 목업)
 cd frontend && npm install && npm run dev
+# 4. (비콘, 잠정) android — 폰 두 대에 설치: 헬멧 비콘 1대 + 수신기 1대 → android/README.md
 ```
 
 ## 일정

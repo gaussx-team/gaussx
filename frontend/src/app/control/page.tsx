@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { AppShell } from "@/components/AppShell";
-import { ZoneMap } from "@/components/ZoneMap";
+import { HELMET_COLORS, ZoneMap } from "@/components/ZoneMap";
 import { usePolling } from "@/hooks/usePolling";
 import { api } from "@/lib/api";
 import { EVENT_LABEL, fmtTime, isOpen, robotSummary, SOURCE_LABEL, workWarnings } from "@/lib/format";
@@ -46,9 +46,10 @@ export default function ControlPage() {
             />
           ))}
           <div className="card space-y-2 lg:flex lg:min-h-[260px] lg:flex-1 lg:flex-col">
-            <div className="flex items-center gap-3 text-sm">
+            <div className="flex flex-wrap items-center gap-3 text-sm">
               <h2 className="font-bold">현장</h2>
               <Legend />
+              {data?.gateways?.length ? <HelmetLegend /> : null}
               <span className="ml-auto rounded-full bg-orange-100 px-2 py-0.5 text-xs font-semibold text-orange-700">로봇 · {robotState}</span>
             </div>
             {data ? (
@@ -60,6 +61,8 @@ export default function ControlPage() {
                   robot={data.robot}
                   path={data.dispatch?.status === "moving" ? data.dispatch.path : null}
                   highlightZoneId={focus?.zoneId ?? abnormals[0]?.zoneId}
+                  helmets={data.presence}
+                  receivers={data.gateways}
                 />
               </div>
             ) : (
@@ -248,6 +251,18 @@ function AbnormalBanner({ a, zoneName, onAck, onResolve }: { a: Alert; zoneName?
         </button>
       </div>
     </div>
+  );
+}
+
+// 헬멧 비콘 (백엔드에 수신기가 있을 때만). 위치는 신호 세기로 어림잡은 값
+function HelmetLegend() {
+  return (
+    <span className="flex items-center gap-1 text-xs text-slate-500" title="비콘 신호 세기로 어림잡은 위치라 실내에서 ±50% 정도 틀려요">
+      <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: HELMET_COLORS[0] }} />
+      헬멧 (위치 ±50%)
+      <span className="ml-1 inline-block h-2.5 w-2.5 rounded-sm bg-slate-600" />
+      수신기
+    </span>
   );
 }
 

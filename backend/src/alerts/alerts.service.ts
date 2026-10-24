@@ -4,6 +4,7 @@ import { DB, type Db, json, type Queryable } from '../db/db.js';
 import { EventsService } from '../db/events.service.js';
 import { DispatchService } from '../dispatch/dispatch.service.js';
 import type { AlertSource } from '../domain/rules.js';
+import { LocateService } from '../locate/locate.service.js';
 import { activeWorkOf, type AlertDto, loadAlerts, loadWorks } from '../domain/views.js';
 
 export interface RaiseInput {
@@ -22,11 +23,13 @@ export class AlertsService {
     @Inject(SCENE) private readonly scene: Scene,
     private readonly dispatch: DispatchService,
     private readonly events: EventsService,
+    private readonly locate: LocateService,
   ) {}
 
   /**
    * 쓰러짐 (수동 SOS · 자동 감지 · 관제 직접 출동 · 무대 트리거). 알림과 동시에 로봇이 출발한다.
-   * 구역: 직접 지정 → 그 단말의 작업 중 구역 → 불명. 로봇이 못 가면 '사람 출동 필요'(no_robot).
+   * 구역: 직접 지정 → 헬멧 비콘이 지금 들어가 있는 구역 → 그 단말의 작업 중 구역 → 불명 (어디서 정했는지 zone_source 에 남긴다).
+   * 로봇이 못 가면 '사람 출동 필요'(no_robot).
    */
   async raiseFall(input: RaiseInput): Promise<AlertDto> {
     if (input.deviceId && !this.scene.devices.some((d) => d.id === input.deviceId)) {
@@ -36,7 +39,14 @@ export class AlertsService {
       throw new BadRequestException(`없는 구역이에요: ${input.zoneId}`);
     }
     const work = input.deviceId ? activeWorkOf(await loadWorks(this.db, ''), input.deviceId) : null;
-    const zoneId = input.zoneId ?? work?.zoneId ?? null;
+    const beacon = input.deviceId ? this.locate.zoneOf(input.deviceId) : null;
+    const [zoneId, zoneSource]: [string | null, 'request' | 'beacon' | 'work' | null] = input.zoneId
+      ? [input.zoneId, 'request']
+      : beacon
+        ? [beacon.zoneId, 'beacon']
+        : work
+          ? [work.zoneId, 'work']
+          : [null, null];
 
     // 출동 가능 여부를 먼저 정하고 (자리를 잡아 두고) 알림을 저장한다
     let reason = await this.dispatch.blockedReason(this.db, zoneId);
@@ -47,21 +57,27 @@ export class AlertsService {
     try {
       alertId = await this.db.tx(async (q) => {
         const [a] = await q.query<{ id: number }>(
-          `INSERT INTO alert (site_id, type, source, device_id, zone_id, work_id, status, robot_unavailable, confidence, signal, buffer)
-           VALUES ($1, 'fall', $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10::jsonb) RETURNING id`,
+          `INSERT INTO alert (site_id, type, source, device_id, zone_id, zone_source, work_id, status, robot_unavailable, confidence, signal, buffer)
+           VALUES ($1, 'fall', $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11::jsonb) RETURNING id`,
           [
-            this.scene.site.id, input.source, input.deviceId ?? null, zoneId, work?.id ?? null,
+            this.scene.site.id, input.source, input.deviceId ?? null, zoneId, zoneSource, work?.id ?? null,
             reason ? 'no_robot' : 'dispatched', reason, input.confidence ?? null, json(input.signal), json(input.buffer),
           ],
         );
         await this.events.log(q, {
           type: 'alert.raised',
           actor: input.deviceId ?? '관제',
-          text: `쓰러짐 · ${zoneId ?? '구역 불명'} · ${input.source}`,
+          text: `쓰러짐 · ${zoneId ?? '구역 불명'}${zoneSource === 'beacon' ? ' (비콘)' : ''} · ${input.source}`,
           alert_id: a.id,
           work_id: work?.id ?? null,
           device_id: input.deviceId ?? null,
-          payload: { source: input.source, zone: zoneId, confidence: input.confidence ?? undefined },
+          payload: {
+            source: input.source,
+            zone: zoneId,
+            zoneSource: zoneSource ?? undefined,
+            beacon: beacon ? { gatewayId: beacon.gatewayId, rssi: beacon.rssi } : undefined,
+            confidence: input.confidence ?? undefined,
+          },
         });
         if (reason) {
           await this.events.log(q, {

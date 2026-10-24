@@ -10,6 +10,7 @@ const NAV = [
   { href: "/control", label: "관제", icon: "◉" },
   { href: "/admin/works", label: "작업 등록", icon: "▤" },
   { href: "/admin/tags", label: "위험 태그", icon: "⚑" },
+  { href: "/admin/receivers", label: "수신기 배치", icon: "⌖" },
   { href: "/drawings", label: "도면", icon: "▢" },
   { href: "/robot", label: "로봇", icon: "⚙" },
   { href: "/history", label: "이력", icon: "≡" },
