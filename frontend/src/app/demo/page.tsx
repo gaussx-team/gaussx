@@ -108,7 +108,17 @@ export default function DemoPage() {
                 로봇 {data ? robotSummary(data.robot) : "-"}
               </span>
             </div>
-            {data && <ZoneMap zones={data.zones} tags={data.tags} robot={data.robot} path={data.dispatch?.status === "moving" ? data.dispatch.path : null} highlightZoneId={openAlert?.zoneId} />}
+            {data && (
+              <ZoneMap
+                zones={data.zones}
+                tags={data.tags}
+                robot={data.robot}
+                path={data.dispatch?.status === "moving" ? data.dispatch.path : null}
+                highlightZoneId={openAlert?.zoneId}
+                helmets={data.presence}
+                receivers={data.gateways}
+              />
+            )}
           </div>
 
           <div className="card space-y-2">
