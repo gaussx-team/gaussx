@@ -120,8 +120,8 @@ describe('이력 · 상태 · 설정', () => {
 
   it('설정 · 단말 · 상태 확인 · 문서', async () => {
     assert.deepEqual(await s.ok('GET', '/api/devices'), [
-      { id: 'device-01', label: '단말 1번', kind: 'phone' },
-      { id: 'device-02', label: '단말 2번', kind: 'phone' },
+      { id: 'device-01', label: '단말 1번', kind: 'phone', beaconId: '9d299ff3-5431-40e6-85d6-4ac08806000e:1:1' },
+      { id: 'device-02', label: '단말 2번', kind: 'phone', beaconId: '9d299ff3-5431-40e6-85d6-4ac08806000e:1:2' },
     ]);
     const c = await s.ok('GET', '/api/config');
     assert.deepEqual([c.site.id, c.robot.home, c.precomputedRoutes], ['demo', [3.3, 2.4], 9]);

@@ -19,6 +19,8 @@ export interface Settings {
   computeUrl: string | null;
   /** 로봇 도착 타이머 배속. 1 = 실제 시간. 테스트에서만 키운다 */
   dispatchSpeed: number;
+  /** 관리자 화면에서 바꾼 비콘 수신기 자리 · 구역 · 1m 세기 (씬 값 위에 덮어쓴다. 회차 · 재시작과 상관없이 남는다) */
+  gatewaysFile: string;
 }
 
 /** 환경 변수 → 설정. 상대 경로는 backend/ 기준 */
@@ -45,5 +47,6 @@ export function loadSettings(env: NodeJS.ProcessEnv = process.env): Settings {
     filesDir: path(env.FILES_DIR, join(SERVER_ROOT, '.data', 'files')),
     computeUrl: compute && compute !== 'off' ? compute.replace(/\/+$/, '') : null,
     dispatchSpeed: speed,
+    gatewaysFile: path(env.GATEWAYS_FILE, join(SERVER_ROOT, '.data', 'gateways.json')),
   };
 }

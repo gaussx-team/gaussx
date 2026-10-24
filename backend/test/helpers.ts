@@ -53,6 +53,8 @@ export interface Reply {
 export interface TestServer {
   base: string;
   db: Db;
+  /** 서버 안의 서비스 (테스트에서 시계를 바꿔 끼울 때) */
+  get<T>(token: abstract new (...args: never[]) => T): T;
   call(method: string, path: string, body?: unknown): Promise<Reply>;
   /** 2xx 를 기대하고 본문을 돌려준다 */
   ok(method: string, path: string, body?: unknown): Promise<any>;
@@ -67,7 +69,14 @@ export interface TestServer {
  */
 export async function startServer(env: Record<string, string> = {}): Promise<TestServer> {
   const files = mkdtempSync(join(tmpdir(), 'gx-files-'));
-  const settings = loadSettings({ PGLITE_DIR: 'memory://', COMPUTE_URL: 'off', FILES_DIR: files, DISPATCH_SPEED: '20', ...env });
+  const settings = loadSettings({
+    PGLITE_DIR: 'memory://',
+    COMPUTE_URL: 'off',
+    FILES_DIR: files,
+    GATEWAYS_FILE: join(files, 'gateways.json'), // 수신기 설정은 서버마다 따로 (repo 의 .data 를 건드리지 않게)
+    DISPATCH_SPEED: '20',
+    ...env,
+  });
   const app = await createApp(settings, ['error']);
   await app.listen(0, '127.0.0.1');
   const { port } = app.getHttpServer().address() as AddressInfo;
@@ -92,6 +101,7 @@ export async function startServer(env: Record<string, string> = {}): Promise<Tes
   return {
     base,
     db: app.get<Db>(DB),
+    get: (token) => app.get(token),
     call,
     async ok(method, path, body) {
       const r = await call(method, path, body);

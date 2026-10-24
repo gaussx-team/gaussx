@@ -50,7 +50,7 @@ export class StateController {
   @Get('api/devices')
   @ApiOperation({ summary: '작업자 단말 목록 (작업반장 휴대폰)' })
   devices() {
-    return this.scene.devices.map((d) => ({ id: d.id, label: d.label, kind: d.kind }));
+    return this.scene.devices.map((d) => ({ id: d.id, label: d.label, kind: d.kind, beaconId: d.beaconId }));
   }
 
   @Get('api/config')
@@ -63,7 +63,9 @@ export class StateController {
       site: this.scene.site,
       scan: { id: this.scene.scan.id, capturedAt: this.scene.scan.capturedAt },
       zones: this.scene.zones.map((z) => ({ id: z.id, name: z.name, color: z.color, rect: z.rect })),
-      devices: this.scene.devices.map((d) => ({ id: d.id, label: d.label, kind: d.kind })),
+      devices: this.scene.devices.map((d) => ({ id: d.id, label: d.label, kind: d.kind, beaconId: d.beaconId })),
+      gateways: this.scene.gateways,
+      locate: this.scene.locate,
       robot: { id: this.scene.robot.id, home: [h.x, h.y], yaw: h.yaw },
       precomputedRoutes: this.scene.routes?.routes.length ?? 0,
     };

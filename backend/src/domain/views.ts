@@ -108,6 +108,8 @@ export interface AlertDto {
   source: AlertSource;
   deviceId: string | null;
   zoneId: string | null;
+  /** 구역을 어디서 정했나: 직접 지정 · 비콘 · 작업 중 구역 */
+  zoneSource: 'request' | 'beacon' | 'work' | null;
   workId: number | null;
   status: 'dispatched' | 'arrived' | 'no_robot' | 'open' | 'resolved';
   raisedAt: Date;
@@ -412,6 +414,7 @@ interface AlertRow {
   source: AlertSource;
   device_id: string | null;
   zone_id: string | null;
+  zone_source: AlertDto['zoneSource'];
   work_id: number | null;
   status: AlertDto['status'];
   confidence: number | null;
@@ -437,7 +440,7 @@ interface AlertRow {
 /** 알림 (측정 이상이면 측정값 · 정상 범위까지). 오래된 것부터 */
 export async function loadAlerts(q: Queryable, f: { id?: number } = {}): Promise<AlertDto[]> {
   const rows = await q.query<AlertRow>(
-    `SELECT a.id, a.site_id, a.type, a.source, a.device_id, a.zone_id, a.work_id, a.status, a.confidence, a.raised_at,
+    `SELECT a.id, a.site_id, a.type, a.source, a.device_id, a.zone_id, a.zone_source, a.work_id, a.status, a.confidence, a.raised_at,
             a.robot_unavailable, a.human_dispatched_at, a.acknowledged_at, a.resolution, a.resolved_at,
             a.tag_id, a.check_item_id, a.reading_value, a.rechecked_value, a.rechecked_at,
             t.title AS tag_title, ci.item AS ci_item, ci.unit AS ci_unit,
@@ -456,6 +459,7 @@ export async function loadAlerts(q: Queryable, f: { id?: number } = {}): Promise
     source: r.source,
     deviceId: r.device_id,
     zoneId: r.zone_id,
+    zoneSource: r.zone_source,
     workId: r.work_id,
     status: r.status,
     raisedAt: r.raised_at,

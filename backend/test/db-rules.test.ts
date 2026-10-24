@@ -104,6 +104,17 @@ describe('DB 규칙 — DDL v5 · 데모 데이터 · 막혀야 할 쓰기', () 
     ['이유 없는 사람 출동 필요', "INSERT INTO alert (site_id, type, source, status) VALUES ('demo', 'fall', 'debug', 'no_robot')", '23514', 'alert_no_robot_reason'],
     ['파일도 주소도 없는 도면', "INSERT INTO drawing (site_id, title, kind, file_name, mime, uploaded_by) VALUES ('demo', 'x', 'other', 'x.pdf', 'application/pdf', '담당자')", '23514', 'drawing_one_source'],
     ['없는 구역의 도면', "INSERT INTO drawing_zone (drawing_id, zone_id) VALUES (1, 'Z9')", '23503', 'drawing_zone_zone_id_fkey'],
+    // 0001 비콘
+    ['MAC 도 비콘 id 도 없는 헬멧 비콘', "INSERT INTO device (id, site_id, kind, label) VALUES ('helmet-x', 'demo', 'helmet_beacon', '헬멧')", '23514', 'device_identifiable'],
+    ['비콘 id 형식이 아님 (대문자)', "UPDATE device SET beacon_id = '9D299FF3-5431-40E6-85D6-4AC08806000E:1:2' WHERE id = 'device-02'", '23514', 'device_beacon_id_check'],
+    ['두 단말이 같은 비콘 id', "UPDATE device SET beacon_id = '9d299ff3-5431-40e6-85d6-4ac08806000e:1:1' WHERE id = 'device-02'", '23505', 'device_beacon_id_key'],
+    ['MAC 없는 고정 비콘 (수신기만 MAC 없이 된다)', "INSERT INTO anchor (id, kind, zone_id, scan_id, x, y, z, position_source) VALUES ('B-x', 'beacon', 'Z1', 'dev', 0, 0, 0, 'manual')", '23514', 'anchor_beacon_mac'],
+    [
+      '모르는 구역 출처',
+      "INSERT INTO alert (site_id, type, source, zone_id, zone_source, status, robot_unavailable) VALUES ('demo', 'fall', 'debug', 'Z1', 'gps', 'no_robot', '충전 중')",
+      '23514',
+      'alert_zone_source_check',
+    ],
   ];
   for (const [name, sql, code, message] of BLOCKED) it(`막힘: ${name}`, () => blocked(sql, code, message));
 
@@ -157,6 +168,28 @@ describe('DB 규칙 — DDL v5 · 데모 데이터 · 막혀야 할 쓰기', () 
       `INSERT INTO alert (site_id, type, source, device_id, zone_id, status, robot_unavailable, human_dispatched_by, human_dispatched_at)
        VALUES ('demo', 'fall', 'sos_button', 'device-01', 'Z1', 'no_robot', '충전 중', '관제', now())`,
     );
+  });
+
+  it('통과: 비콘 (0001) — 수신기는 MAC 없이 · 단말 비콘 id 는 씬에서 · 알림 구역 출처', async () => {
+    const applied = await db.query<{ name: string }>('SELECT name FROM _migrations ORDER BY name');
+    assert.deepEqual(applied.map((m) => m.name), ['0000_init.sql', '0001_beacon.sql']);
+    const gw = await db.query("SELECT id, kind, zone_id, mac, x, y FROM anchor WHERE kind = 'gateway' ORDER BY id");
+    assert.deepEqual(gw, [
+      { id: 'gw-01', kind: 'gateway', zone_id: 'Z1', mac: null, x: 0, y: 1.5 },
+      { id: 'gw-02', kind: 'gateway', zone_id: 'Z1', mac: null, x: 2, y: 1.5 },
+    ]);
+    await db.query(
+      `INSERT INTO alert (site_id, type, source, device_id, zone_id, zone_source, status, robot_unavailable)
+       VALUES ('demo', 'fall', 'sos_button', 'device-01', 'Z1', 'beacon', 'no_robot', '충전 중')`,
+    );
+    // 씬에서 두 단말의 비콘 id 를 맞바꿔도 다시 반영된다 (겹침 검사에 걸리지 않게 먼저 비운다)
+    const scene = loadScene(DEV_SCENE_DIR);
+    const ids = scene.devices.map((d) => d.beaconId);
+    const beacons = async () => (await db.query<{ beacon_id: string }>('SELECT beacon_id FROM device ORDER BY id')).map((d) => d.beacon_id);
+    await new ConfigSync(db, { ...scene, devices: scene.devices.map((d, i) => ({ ...d, beaconId: ids[1 - i] })) }).sync();
+    assert.deepEqual(await beacons(), [ids[1], ids[0]]);
+    await new ConfigSync(db, scene).sync();
+    assert.deepEqual(await beacons(), ids);
   });
 
   it('번호 빈칸은 실패한 시도다: 막힌 INSERT 도 작업 번호를 쓴다', async () => {

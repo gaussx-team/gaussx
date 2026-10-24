@@ -1,6 +1,7 @@
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import { DB, type Db } from '../db/db.js';
 import { DispatchService } from '../dispatch/dispatch.service.js';
+import { LocateService } from '../locate/locate.service.js';
 import { dayKey, type EventCategory, eventCategory, isDayKey, isOpen, startOfDay } from '../domain/rules.js';
 import { loadAlerts, loadDispatches, loadEvents, loadTags, loadWorks, loadZones } from '../domain/views.js';
 
@@ -17,6 +18,7 @@ export class StateService {
   constructor(
     @Inject(DB) private readonly db: Db,
     private readonly dispatch: DispatchService,
+    private readonly locate: LocateService,
   ) {}
 
   /** 대시보드 · 관제 · 시연 화면 폴링 (0.5~3초). 구역 색 · 진행 중 작업 · 열린 알림 · 로봇 · 오늘 타임라인 */
@@ -52,6 +54,9 @@ export class StateService {
       dispatch: dispatches.at(-1) ?? null,
       robot,
       events: events.slice(0, 30),
+      // 비콘: 단말이 지금 어느 수신기 구역에 있는지 (메모리 판정) · 수신기 연결 상태
+      presence: this.locate.presence(),
+      gateways: this.locate.gateways(),
     };
   }
 

@@ -54,11 +54,25 @@ export class ConfigSync {
         );
       }
 
+      // 비콘 id 를 단말끼리 바꿔 적어도 유일 제약에 걸리지 않게 먼저 비운다 (설정 파일이 원본)
+      await q.query('UPDATE device SET beacon_id = NULL WHERE beacon_id IS NOT NULL');
       for (const d of s.devices) {
         await q.query(
-          `INSERT INTO device (id, site_id, kind, mac, label) VALUES ($1, $2, $3, $4, $5)
-           ON CONFLICT (id) DO UPDATE SET site_id = EXCLUDED.site_id, kind = EXCLUDED.kind, mac = EXCLUDED.mac, label = EXCLUDED.label`,
-          [d.id, s.site.id, d.kind, d.mac, d.label],
+          `INSERT INTO device (id, site_id, kind, mac, label, beacon_id) VALUES ($1, $2, $3, $4, $5, $6)
+           ON CONFLICT (id) DO UPDATE SET site_id = EXCLUDED.site_id, kind = EXCLUDED.kind, mac = EXCLUDED.mac,
+             label = EXCLUDED.label, beacon_id = EXCLUDED.beacon_id`,
+          [d.id, s.site.id, d.kind, d.mac, d.label, d.beaconId],
+        );
+      }
+
+      // 수신기(게이트웨이) = 앵커. 보고에 실어 오는 id 로 찾으므로 MAC 은 없다
+      for (const g of s.gateways) {
+        await q.query(
+          `INSERT INTO anchor (id, kind, zone_id, mac, marker_id, scan_id, x, y, z, position_source)
+           VALUES ($1, 'gateway', $2, NULL, NULL, $3, $4, $5, $6, 'manual')
+           ON CONFLICT (id) DO UPDATE SET kind = 'gateway', zone_id = EXCLUDED.zone_id, mac = NULL, scan_id = EXCLUDED.scan_id,
+             x = EXCLUDED.x, y = EXCLUDED.y, z = EXCLUDED.z, position_source = 'manual'`,
+          [g.id, g.zone, s.scan.id, g.world[0], g.world[1], g.world[2]],
         );
       }
 
@@ -73,7 +87,7 @@ export class ConfigSync {
       );
     });
     new Logger('Config').log(
-      `설정 반영 (${this.db.schema}): 현장 ${s.site.id} · 스캔 ${s.scan.id} · 구역 ${s.zones.length} · 단말 ${s.devices.length}`,
+      `설정 반영 (${this.db.schema}): 현장 ${s.site.id} · 스캔 ${s.scan.id} · 구역 ${s.zones.length} · 단말 ${s.devices.length} · 수신기 ${s.gateways.length}`,
     );
   }
 }
