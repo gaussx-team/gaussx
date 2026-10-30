@@ -12,6 +12,7 @@
 
 - 규칙: [CONVENTION.md](CONVENTION.md)
 - 기준 문서: [docs/SPEC.md](docs/SPEC.md) · API: [docs/api.md](docs/api.md) · 데이터: [docs/ERD.md](docs/ERD.md)
+- 작업 카드 3D 실행·장면 받기: [docs/CARD-3D.md](docs/CARD-3D.md)
 - 와이어프레임: [Figma](https://www.figma.com/design/hbD7GS4spj5wOAZPnigBt9)
 
 ## 실행 (데모 노트북)
