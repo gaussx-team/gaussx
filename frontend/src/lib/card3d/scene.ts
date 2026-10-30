@@ -10,6 +10,7 @@ export interface CardSceneConfig {
   version: 1;
   id: string;
   label: string;
+  displayName?: string;
   coordinateSystem: string;
   model: { url: string; format: string; count: number; shDegree: number };
   background: Point3;
@@ -83,6 +84,14 @@ export function assignedEquipment(config: CardSceneConfig, title: string, tags: 
 
 export const distance3d = (a: Point3, b: Point3) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
 
+export function scenePresetForWidth(config: CardSceneConfig, preset: string, width: number): string {
+  return preset === "nearby" && width < 480 && config.presets.nearby_mobile ? "nearby_mobile" : preset;
+}
+
+export function markerShortName(marker: SceneMarker): string {
+  return marker.kind === "work" ? `내 작업 ${marker.id}` : `${marker.substance.trim().split(/\s+/)[0] || "설비"} ${marker.id}`;
+}
+
 export function sceneMarkers(config: CardSceneConfig, equipment: string, workTags: SceneTag[], currentTags: SceneTag[]): SceneMarker[] {
   const workAnchor = config.anchors.find((a) => a.id === equipment);
   if (!workAnchor) return [];
@@ -107,25 +116,35 @@ export function sceneMarkers(config: CardSceneConfig, equipment: string, workTag
 
 export interface ProjectedMarker { id: string; x: number; y: number; kind: "work" | "hazard" }
 export interface MarkerBox extends ProjectedMarker { left: number; top: number; width: number; height: number }
+export interface LabelRect { left: number; top: number; width: number; height: number }
 
 // Keep the world projection fixed; only the label box moves. Omit boxes that cannot fit.
-export function layoutMarkerBoxes(points: ProjectedMarker[], width: number, height: number): MarkerBox[] {
+export function layoutMarkerBoxes(points: ProjectedMarker[], width: number, height: number,
+  { reserved = [], presentation = false }: { reserved?: LabelRect[]; presentation?: boolean } = {}): MarkerBox[] {
   const result: MarkerBox[] = [];
-  const boxWidth = Math.min(138, Math.floor((width - 30) / 2));
-  if (boxWidth < 90 || height < 160) return result;
+  const compact = width < 480;
+  const boxWidth = compact ? 110 : presentation ? 196 : 138;
+  const boxHeight = compact ? 26 : presentation ? 66 : 46;
+  if (width < 220 || height < 160) return result;
+  const blocked = [
+    { left: 0, top: 0, width, height: 44 },
+    { left: 0, top: height - 36, width, height: 36 },
+    ...reserved,
+  ];
+  const overlaps = (a: LabelRect, b: LabelRect) => a.left < b.left + b.width + 6 && a.left + a.width + 6 > b.left
+    && a.top < b.top + b.height + 6 && a.top + a.height + 6 > b.top;
   for (const p of [...points].sort((a, b) => a.kind === b.kind ? 0 : a.kind === "work" ? -1 : 1)) {
-    const boxHeight = 46;
     const candidates = [
-      [p.x + 14, p.y - 52], [p.x - boxWidth - 14, p.y - 52],
+      [p.x + 10, p.y - boxHeight - 6], [p.x - boxWidth - 10, p.y - boxHeight - 6],
       [p.x + 14, p.y + 10], [p.x - boxWidth - 14, p.y + 10],
-      ...[50, 104, 158, 212, 266, 320].flatMap((y) => [[10, y], [width - boxWidth - 10, y]]),
+      ...Array.from({ length: Math.ceil(height / (boxHeight + 8)) }, (_, i) => 50 + i * (boxHeight + 8))
+        .flatMap((y) => [[10, y], [width - boxWidth - 10, y]]),
     ];
     for (const [rawX, rawY] of candidates) {
       const left = Math.max(10, Math.min(width - boxWidth - 10, rawX));
-      const top = Math.max(48, Math.min(height - boxHeight - 48, rawY));
+      const top = Math.max(50, Math.min(height - boxHeight - 42, rawY));
       const box = { ...p, left, top, width: boxWidth, height: boxHeight };
-      if (result.some((b) => left < b.left + b.width + 6 && left + boxWidth + 6 > b.left
-        && top < b.top + b.height + 6 && top + boxHeight + 6 > b.top)) continue;
+      if (blocked.some((b) => overlaps(box, b)) || result.some((b) => overlaps(box, b))) continue;
       result.push(box);
       break;
     }

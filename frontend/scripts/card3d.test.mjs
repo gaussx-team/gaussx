@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { assignedEquipment, distance3d, equipmentIn, layoutMarkerBoxes, sceneMarkers, sceneModelUrl, validateSceneConfig } from "../src/lib/card3d/scene.ts";
+import { assignedEquipment, distance3d, equipmentIn, layoutMarkerBoxes, markerShortName, sceneMarkers, sceneModelUrl, scenePresetForWidth, validateSceneConfig } from "../src/lib/card3d/scene.ts";
 
 const config = validateSceneConfig(JSON.parse(await readFile(new URL("../public/scenes/card-active.json", import.meta.url), "utf8")));
 const tag = (title, changes = {}) => ({ id: 1, title, hazard: "누출 위험", substance: "황산", official: true, status: "active", version: 1, ...changes });
@@ -74,7 +74,7 @@ test("crowded phone labels fit without overlap and preserve their world projecti
     { id: "MCC-3", x: 191, y: 154, kind: "work" },
     { id: "PU-07", x: 193, y: 157, kind: "hazard" },
   ];
-  for (const [width, height] of [[328, 306], [343, 306], [800, 550]]) {
+  for (const [width, height] of [[311, 306], [326, 306], [343, 306], [800, 550]]) {
     const boxes = layoutMarkerBoxes(points, width, height);
     assert.equal(boxes.length, 4);
     assert.equal(boxes[0].id, "MCC-3");
@@ -83,7 +83,7 @@ test("crowded phone labels fit without overlap and preserve their world projecti
       assert.equal(b.x, original.x);
       assert.equal(b.y, original.y);
       assert.ok(b.left >= 0 && b.left + b.width <= width);
-      assert.ok(b.top >= 48 && b.top + b.height <= height - 48);
+      assert.ok(b.top >= 48 && b.top + b.height <= height - 42);
       for (const other of boxes.filter((x) => x !== b)) {
         assert.ok(b.left + b.width <= other.left || other.left + other.width <= b.left
           || b.top + b.height <= other.top || other.top + other.height <= b.top);
@@ -91,4 +91,41 @@ test("crowded phone labels fit without overlap and preserve their world projecti
     }
   }
   assert.deepEqual(layoutMarkerBoxes(points, 180, 120), []);
+});
+
+test("compact labels leave the actual home button and AI notice unobstructed", () => {
+  const points = [
+    { id: "MCC-3", x: 290, y: 127, kind: "work" },
+    { id: "PU-07", x: 201, y: 166, kind: "hazard" },
+    { id: "P-203", x: 23, y: 188, kind: "hazard" },
+    { id: "T-02", x: 193, y: 89, kind: "hazard" },
+  ];
+  const reserved = [
+    { left: 12, top: 12, width: 90, height: 25 },
+    { left: 168, top: 239, width: 131, height: 27 },
+    { left: 0, top: 262, width: 311, height: 44 },
+  ];
+  const boxes = layoutMarkerBoxes(points, 311, 306, { reserved });
+  assert.equal(boxes.length, 4);
+  assert.ok(boxes.reduce((sum, box) => sum + box.width * box.height, 0) < 311 * 306 * 0.13);
+  for (const box of boxes) {
+    for (const rect of reserved) {
+      assert.ok(box.left + box.width + 6 <= rect.left || rect.left + rect.width + 6 <= box.left
+        || box.top + box.height + 6 <= rect.top || rect.top + rect.height + 6 <= box.top);
+    }
+  }
+  const markers = sceneMarkers(config, "MCC-3", workTags, currentTags);
+  assert.equal(markerShortName(markers[0]), "내 작업 MCC-3");
+  assert.equal(markerShortName(markers[2]), "불산 P-203");
+});
+
+test("the phone context camera is selected by canvas width without changing the assigned or desktop view", () => {
+  assert.equal(scenePresetForWidth(config, "nearby", 311), "nearby_mobile");
+  assert.equal(scenePresetForWidth(config, "nearby", 479), "nearby_mobile");
+  assert.equal(scenePresetForWidth(config, "nearby", 480), "nearby");
+  assert.equal(scenePresetForWidth(config, "work", 311), "work");
+  assert.equal(scenePresetForWidth(config, "P-203", 311), "P-203");
+  const replacement = structuredClone(config);
+  delete replacement.presets.nearby_mobile;
+  assert.equal(scenePresetForWidth(replacement, "nearby", 311), "nearby");
 });

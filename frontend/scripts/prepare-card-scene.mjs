@@ -67,6 +67,7 @@ function makeConfig({ scene, anchors, presets, modelUrl, format, sourceSha256 })
     version: 1,
     id: "a-v2d",
     label: "A구역",
+    displayName: "",
     model: { url: modelUrl, format, count: scene.model.count, shDegree: 3 },
     coordinateSystem: "Blender Z-up meters",
     background: scene.background.sRGB,
@@ -81,6 +82,15 @@ function makeConfig({ scene, anchors, presets, modelUrl, format, sourceSha256 })
         label: "주변 위험",
         matrix: [[1, 0, 0, 2], [0, -s, -c, 0.3], [0, c, -s, 2.1], [0, 0, 0, 1]],
       },
+      nearby_mobile: {
+        label: "주변 위험",
+        matrix: [
+          [0.9987871732972772, -0.00482502785471698, 0.04899899553088733, 2],
+          [0.04923598741606297, 0.09787913648140156, -0.9939796236265713, 0.9],
+          [0, 0.9951866125244332, 0.09799799106177443, 2.4],
+          [0, 0, 0, 1],
+        ],
+      },
       ...named,
     },
     metadata: {
@@ -90,6 +100,7 @@ function makeConfig({ scene, anchors, presets, modelUrl, format, sourceSha256 })
       distanceMeaning: "3D 메타데이터 앵커 간 직선거리이며 보행거리나 위험 영향반경이 아님",
       nearbyRadiusMeaning: "주변 공정 태그를 선택하는 시연 표시 범위",
       nearbyCameraSource: "카드용 내부 시점(시각 검토 완료, 원본 평가 점수가 없는 novel view)",
+      mobileNearbyCameraSource: "폰용 내부 시점 [2,0.9,2.4] → [1.65,8,1.7], 원본 평가 점수가 없는 novel view",
       anchorLimit: "P-203는 지정 플랜지 중심, 나머지는 원본 label anchor로 가시 표면점이 아님",
     },
   };

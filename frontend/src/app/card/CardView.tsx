@@ -164,7 +164,7 @@ export function Shell({ device, preview = false, back = true, children }: { devi
       {children}
     </div>
   );
-  if (preview) return <div className="h-dvh overflow-y-auto">{body}</div>;
+  if (preview) return <div className="h-dvh overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">{body}</div>;
   return (
     <div className="min-h-dvh lg:flex lg:items-center lg:justify-center lg:gap-12 lg:bg-slate-200 lg:py-8">
       <div className="hidden max-w-xs space-y-3 lg:block">
@@ -178,7 +178,7 @@ export function Shell({ device, preview = false, back = true, children }: { devi
           ← 관제로 돌아가기
         </a>
       </div>
-      <div className="lg:h-[760px] lg:w-[380px] lg:shrink-0 lg:overflow-y-auto lg:rounded-[44px] lg:border-[10px] lg:border-slate-900 lg:bg-slate-50 lg:shadow-2xl">{body}</div>
+      <div className="lg:h-[760px] lg:w-[380px] lg:shrink-0 lg:overflow-y-auto lg:rounded-[44px] lg:border-[10px] lg:border-slate-900 lg:bg-slate-50 lg:shadow-2xl [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">{body}</div>
     </div>
   );
 }

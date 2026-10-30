@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { SparkRenderer, SplatMesh } from "@sparkjsdev/spark";
-import { layoutMarkerBoxes } from "./scene.ts";
+import { layoutMarkerBoxes, scenePresetForWidth } from "./scene.ts";
 
 export function createCardScene(canvas, options) {
   const { config, onFrame, onProgress, onLoaded, onError } = options;
@@ -29,6 +29,7 @@ export function createCardScene(canvas, options) {
   let markers = options.markers;
   let markerKey = JSON.stringify(markers);
   let currentPreset = options.preset;
+  let cameraPreset;
   const loadAbort = new AbortController();
 
   function requestRender() {
@@ -48,15 +49,17 @@ export function createCardScene(canvas, options) {
         if (p.x < -1 || p.x > 1 || p.y < -1 || p.y > 1 || p.z < -1 || p.z > 1) return [];
         return [{ id: marker.id, kind: marker.kind, x: (p.x + 1) * width / 2, y: (1 - p.y) * height / 2 }];
       });
-      onFrame({ boxes: layoutMarkerBoxes(projected, width, height), width, height,
-        camera: [camera.position.x, camera.position.y, camera.position.z], preset: currentPreset });
+      onFrame({ boxes: layoutMarkerBoxes(projected, width, height, {
+        reserved: options.getReservedRects(), presentation: options.presentation,
+      }), width, height, camera: [camera.position.x, camera.position.y, camera.position.z], preset: currentPreset, cameraPreset });
       if (spark.sorting) requestRender();
     } catch (error) { onError({ kind: "load", message: error.message }); }
   }
   function setPreset(preset) {
     if (disposed) return;
     currentPreset = preset;
-    const p = config.presets[preset] ?? config.presets.work;
+    cameraPreset = scenePresetForWidth(config, preset, canvas.clientWidth);
+    const p = config.presets[cameraPreset] ?? config.presets.work;
     const matrix = new THREE.Matrix4().fromArray(p.matrix[0].map((_, column) => p.matrix.map((row) => row[column])).flat());
     matrix.decompose(camera.position, camera.quaternion, camera.scale);
     camera.updateMatrixWorld(true);
@@ -73,6 +76,7 @@ export function createCardScene(canvas, options) {
     camera.fov = THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(config.horizontalFovDegrees / 2)) / aspect));
     camera.aspect = aspect;
     camera.updateProjectionMatrix();
+    if (scenePresetForWidth(config, currentPreset, width) !== cameraPreset) setPreset(currentPreset);
     requestRender();
   }
   function contextLost(event) {
@@ -140,6 +144,7 @@ export function createCardScene(canvas, options) {
   load();
   return {
     setPreset,
+    refreshLayout: requestRender,
     setMarkers(nextMarkers) {
       const nextKey = JSON.stringify(nextMarkers);
       if (nextKey === markerKey) return;

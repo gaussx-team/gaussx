@@ -47,14 +47,16 @@ test("nearby chemical process anchors use actual metre distances and the configu
 });
 
 test("the context camera places the work and all three hazards in front and inside its source frame", () => {
-  const matrix = config.presets.nearby.matrix;
   const tanHalfHorizontal = Math.tan(config.horizontalFovDegrees * Math.PI / 360);
-  for (const id of [config.defaultWorkEquipment, ...config.contextEquipment]) {
-    const delta = anchor(id).map((value, axis) => value - matrix[axis][3]);
-    const local = [0, 1, 2].map((axis) => delta.reduce((sum, value, row) => sum + value * matrix[row][axis], 0));
-    assert.ok(local[2] < 0, `${id} must be in front of the camera`);
-    assert.ok(Math.abs(local[0] / -local[2]) < tanHalfHorizontal, `${id} must fit horizontally`);
-    assert.ok(Math.abs(local[1] / -local[2]) < tanHalfHorizontal * 9 / 16, `${id} must fit vertically`);
+  for (const [preset, aspect] of [["nearby", 16 / 9], ["nearby_mobile", 311 / 306], ["nearby_mobile", 326 / 306]]) {
+    const matrix = config.presets[preset].matrix;
+    for (const id of [config.defaultWorkEquipment, ...config.contextEquipment]) {
+      const delta = anchor(id).map((value, axis) => value - matrix[axis][3]);
+      const local = [0, 1, 2].map((axis) => delta.reduce((sum, value, row) => sum + value * matrix[row][axis], 0));
+      assert.ok(local[2] < 0, `${id} must be in front of the camera`);
+      assert.ok(Math.abs(local[0] / -local[2]) < tanHalfHorizontal, `${id} must fit horizontally`);
+      assert.ok(Math.abs(local[1] / -local[2]) < tanHalfHorizontal / aspect, `${id} must fit vertically in ${preset}`);
+    }
   }
 });
 

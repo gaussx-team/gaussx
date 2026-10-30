@@ -38,6 +38,7 @@ npm run dev -- --port 3100
 | 기록을 남기지 않는 카드 미리보기 | `/card?work=8&preview=1` |
 | 넓은 캡처 화면, 배정 위치 | `/card/space?work=8&view3d=work` |
 | 넓은 캡처 화면, 주변 위험 전체 | `/card/space?work=8&view3d=nearby` |
+| 덱 전용 16:9, 주변 위험 전체 | `/card/space?work=8&view3d=nearby&capture=16x9` |
 | 불산 배관 | `/card/space?work=8&view3d=P-203` |
 | 황산 펌프 | `/card/space?work=8&view3d=PU-07` |
 | 황산 탱크 | `/card/space?work=8&view3d=T-02` |
@@ -45,6 +46,10 @@ npm run dev -- --port 3100
 예: `http://localhost:3100/card/space?work=8&view3d=nearby`. `view3d`는 카드 미리보기에도 붙일 수 있다. `/card/space`는 GET만 사용하며 열람·확인 기록을 쓰지 않는다. 실제 `/card?work=8`은 기존 카드 흐름대로 열람 기록을 남긴다. 덱 최종 캡처는 master가 진행한다.
 
 `work`는 원본의 검증된 MCC-3 시점이다. `nearby`는 설비 네 곳이 선명하게 보이도록 카드용으로 시각 검토한 내부 시점이며, 원본 PSNR/SSIM 평가 점수는 없다. 원본 `upper_overview` 등 다른 프리셋은 보존했다.
+
+덱용 `capture=16x9`는 1920×1080에서 작은 상단 제목, 화면을 채우는 3D 패널, 발표 크기의 오른쪽 목록을 표시한다. 일반 `/card/space`는 기존 문서형 화면을 유지한다. 장면 내부 구역명은 칩에 노출하지 않으며, 설정의 `displayName`을 비우면 시점 이름만 표시한다.
+
+캔버스 폭이 480px 미만이면 라벨은 ‘불산 P-203’ 같은 짧은 이름 한 줄로 줄이고 거리·상세는 아래 목록에 둔다. 라벨은 실제 칩·복귀 버튼·AI 고지 영역을 피해 배치한다. 폰의 `nearby`에는 `nearby_mobile` 시점을 자동 적용해 천장을 줄인다. 배정 시점과 넓은 화면 시점은 유지한다. 휴대폰 틀과 미리보기는 스크롤바를 숨기고 스크롤을 유지한다.
 
 드래그로 회전하고 휠 또는 두 손가락으로 확대한다. ‘내 위치로 돌아가기’는 검증된 배정 시점으로 정확히 복원한다. 태그 글상자는 서로 겹치지 않게 배치하고, 가용 공간에 들어가지 않으면 주변 목록으로 확인한다. 화면 밖 설비는 주변 목록에 남는다.
 
@@ -54,7 +59,7 @@ npm run dev -- --port 3100
 
 1. 새 모델을 `public/scenes/`에 준비하고 `model.url`, `format`, `count`, `shDegree`를 맞춘다. 다운로드 도구는 SPZ를 검증한다. 런타임은 Spark가 지원하는 형식을 파일 확장자로 판별한다.
 2. `anchors`에 설비 ID, 이름, 미터 단위 `[x,y,z]`를 넣고, `presets`에 같은 좌표계의 OpenGL camera-to-world 4×4 행 배열을 넣는다. 현재 런타임 좌표는 **Z-up 미터, 모델 변환 identity**이다. 다른 좌표계의 자료는 준비 단계에서 이 기준으로 맞춘다.
-3. `work`, `nearby` 프리셋, 설비 ID별 프리셋, `defaultWorkEquipment`, `contextEquipment`, `background`, `horizontalFovDegrees`, `nearbyRadiusMeters`를 맞춘다. `id`도 새 장면 값으로 바꾼다.
+3. `work`, `nearby` 프리셋, 필요하면 폰용 `nearby_mobile`, 설비 ID별 프리셋, `defaultWorkEquipment`, `contextEquipment`, `background`, `horizontalFovDegrees`, `nearbyRadiusMeters`를 맞춘다. `id`와 선택 표시 이름 `displayName`도 새 장면 값으로 바꾼다. `nearby_mobile`이 없으면 폰에서도 `nearby`를 쓴다.
 4. `scene-source.json`에 새 URL과 선택 해시를 넣는다. 원격 URL 환경변수를 쓰고 있다면 새 모델에 맞춰 바꾸거나 비운다. 앱을 새로 열고 배정 시점·주변 시점과 거리 표시를 확인한다.
 
 기존 형제 폴더 `virtual-site`가 있는 개발 환경에서는 `npm run scene:prepare`로 A v2d 원본을 CPU에서 압축할 수 있다. 새 패키지를 설치하지 않고 설치된 Spark의 공식 `transcodeSpz`를 사용한다. 동일 입력의 재실행은 파일을 다시 쓰지 않는다. 이 명령은 **A v2d 준비 전용**이므로 전체동 설정 교체 뒤에는 실행하지 않는다.

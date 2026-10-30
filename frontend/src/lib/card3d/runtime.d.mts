@@ -1,4 +1,4 @@
-import type { CardSceneConfig, MarkerBox, SceneMarker } from "./scene";
+import type { CardSceneConfig, LabelRect, MarkerBox, SceneMarker } from "./scene";
 
 export interface SceneFrame {
   boxes: MarkerBox[];
@@ -6,10 +6,12 @@ export interface SceneFrame {
   height: number;
   camera: number[];
   preset: string;
+  cameraPreset: string;
 }
 export interface CardSceneRuntime {
   setPreset(preset: string): void;
   setMarkers(markers: SceneMarker[]): void;
+  refreshLayout(): void;
   dispose(): void;
 }
 export function createCardScene(canvas: HTMLCanvasElement, options: {
@@ -17,6 +19,8 @@ export function createCardScene(canvas: HTMLCanvasElement, options: {
   modelUrl: string;
   markers: SceneMarker[];
   preset: string;
+  presentation: boolean;
+  getReservedRects(): LabelRect[];
   onFrame(frame: SceneFrame): void;
   onProgress(progress: number | null): void;
   onLoaded(info: { count: number; shDegree?: number }): void;
