@@ -4,18 +4,18 @@ MCC-3 배전반 점검 카드에서 배정된 설비의 공간과 주변 공정 
 
 ## 장면 파일 받기
 
-장면 파일은 GitHub Release 첨부 또는 공유 드라이브의 **직접 다운로드 URL**로 별도 전달한다. 배포 주소는 결정 후 `frontend/scripts/scene-source.json`의 `url`에 넣는다. 프론트엔드 폴더에서 `npm run scene:fetch` 한 번으로 `public/scenes/a-v2d.spz`를 준비한다. URL 결정 전에는 다음과 같이 직접 지정할 수 있다.
+현재 A구역 v2d 장면은 [GitHub pre-release](https://github.com/gaussx-team/gaussx/releases/tag/scene-a-v2d-20261030)의 `a-v2d.spz` 첨부로 공개 배포한다. `frontend/scripts/scene-source.json`에 직접 다운로드 URL과 SHA256이 설정돼 있다. 프론트엔드 폴더에서 `npm run scene:fetch` 한 번으로 `public/scenes/a-v2d.spz`를 준비한다.
 
 ```bash
 cd frontend
 npm ci
-npm run scene:fetch -- --url <직접-다운로드-URL>
+npm run scene:fetch
 npm run dev -- --port 3100
 ```
 
-`scene-source.json`의 `sha256`은 선택값이다. 알려진 해시가 있으면 설정하거나 `--sha256 <해시>`를 붙인다. 스크립트는 리다이렉트를 따르고 파일 형식·Gaussian 수·SH 차수와 지정된 해시를 검사한 뒤 교체한다. 공유 드라이브의 로그인/HTML 공유 페이지는 다운로드 주소로 사용할 수 없다. 같은 파일이면 다시 쓰지 않고, 실패하면 기존 정상 파일을 보존한다. Windows에서 실행 중인 서버가 다른 장면 파일의 교체를 막으면 서버를 멈춘 뒤 명령을 다시 실행한다.
+현재 `scene-source.json`의 `sha256`으로 다운로드 무결성을 자동 검사한다. 다른 파일을 직접 지정할 때는 `npm run scene:fetch -- --url <직접-다운로드-URL> --sha256 <해시>`를 쓴다. 스크립트는 리다이렉트를 따르고 파일 형식·Gaussian 수·SH 차수와 지정된 해시를 검사한 뒤 교체한다. 공유 드라이브의 로그인/HTML 공유 페이지는 다운로드 주소로 사용할 수 없다. 같은 파일이면 다시 쓰지 않고, 실패하면 기존 정상 파일을 보존한다. Windows에서 실행 중인 서버가 다른 장면 파일의 교체를 막으면 서버를 멈춘 뒤 명령을 다시 실행한다.
 
-현재 A구역 v2d 파일은 SPZ3, SH3, Gaussian 998,276개, 21,924,807 bytes이다. SHA256은 `fce9ce44210f0f680eb124a40b0f775817b5bafefae9295cbfe01a5604820b7d`이다. 장면 파일·원본 사진·렌더는 공개 저장소에 올리지 않는다.
+현재 A구역 v2d 파일은 SPZ3, SH3, Gaussian 998,276개, 21,924,807 bytes이다. SHA256은 `fce9ce44210f0f680eb124a40b0f775817b5bafefae9295cbfe01a5604820b7d`이다. 생성형 AI로 만든 시연용 가상 공장이며 실제 현장 스캔이 아니다. 장면 바이너리는 승인된 Release 첨부로만 배포하고 Git 이력에는 커밋하지 않는다. 원본 사진·렌더도 커밋하지 않는다.
 
 ## 로컬 또는 원격 장면 주소
 
