@@ -6,12 +6,17 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:card3d": "node --test scripts/card3d.test.mjs scripts/card-scene-assets.test.mjs",
+    "scene:prepare": "node scripts/prepare-card-scene.mjs",
+    "scene:fetch": "node scripts/fetch-card-scene.mjs"
   },
   "dependencies": {
+    "@sparkjsdev/spark": "2.4.0",
     "next": "16.4.0",
     "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "react-dom": "19.3.0",
+    "three": "0.180.0"
   },
   "devDependencies": {
     "@tailwindcss/turbopack": "^4",

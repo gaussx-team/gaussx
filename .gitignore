@@ -27,7 +27,13 @@ venv/
 *.ply
 *.splat
 *.ksplat
+*.spz
+*.sog
 *.mp4
 *.mov
 3dgs/data/
 3dgs/output/
+
+# Local demo models, source photographs and render output are distributed separately.
+frontend/public/scenes/*
+!frontend/public/scenes/card-active.json

@@ -2,6 +2,7 @@
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { HoldButton } from "@/components/HoldButton";
+import { CardSpace } from "@/components/card3d/CardSpace";
 import { useFallDetection } from "@/hooks/useFallDetection";
 import { usePolling } from "@/hooks/usePolling";
 import { api } from "@/lib/api";
@@ -69,6 +70,7 @@ export function CardView() {
         <div className="text-sm text-emerald-700">작업 중 · {fmtTime(work.confirmedAt)} 시작</div>
       </div>
       <PermitNotice work={work} now={data.now} />
+      <CardSpace work={work} tags={data.tags} />
       {data.tags.map((t) => (
         <div key={t.id} className="rounded-xl border-l-4 border-red-500 bg-white p-3 text-sm shadow-sm">
           <span className="font-semibold">{t.title}</span> — {t.hazard}
@@ -262,6 +264,7 @@ function Checklist({ data, device, onChange, readOnly = false }: { data: CardRes
       </div>
       <PermitNotice work={work} now={data.now} />
       <AbnormalNotice list={data.abnormal} />
+      <CardSpace work={work} tags={data.tags} />
 
       {data.tags.map((t) => (
         <TagCard key={t.id} tag={t} workId={work.id} done={done} onChange={onChange} readOnly={readOnly} drawings={data.drawings} />
