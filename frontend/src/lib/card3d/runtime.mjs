@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { SparkRenderer, SplatMesh } from "@sparkjsdev/spark";
-import { layoutMarkerBoxes, markerPosition, scenePresetForWidth } from "./scene.ts";
+import { layoutMarkerBoxes, markerPosition, sceneHorizontalFov, scenePresetForWidth } from "./scene.ts";
 
 export function createCardScene(canvas, options) {
   const { config, onFrame, onProgress, onLoaded, onError } = options;
@@ -64,20 +64,25 @@ export function createCardScene(canvas, options) {
     const p = config.presets[cameraPreset] ?? config.presets.work;
     const matrix = new THREE.Matrix4().fromArray(p.matrix[0].map((_, column) => p.matrix.map((row) => row[column])).flat());
     matrix.decompose(camera.position, camera.quaternion, camera.scale);
+    updateProjection();
     camera.updateMatrixWorld(true);
     controls.target.copy(camera.position).add(camera.getWorldDirection(new THREE.Vector3()).multiplyScalar(4));
     // Do not call controls.update here: it would alter the validated preset roll.
     requestRender();
   }
+  function updateProjection() {
+    const aspect = (canvas.clientWidth || 1) / (canvas.clientHeight || 1);
+    const horizontalFov = sceneHorizontalFov(config, cameraPreset);
+    camera.fov = THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(horizontalFov / 2)) / aspect));
+    camera.aspect = aspect;
+    camera.updateProjectionMatrix();
+  }
   function resize() {
     const width = canvas.clientWidth, height = canvas.clientHeight;
     if (!width || !height || disposed) return;
     renderer.setSize(width, height, false);
-    const aspect = width / height;
     // Retain the validated horizontal coverage on a portrait phone.
-    camera.fov = THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(config.horizontalFovDegrees / 2)) / aspect));
-    camera.aspect = aspect;
-    camera.updateProjectionMatrix();
+    updateProjection();
     if (scenePresetForWidth(config, currentPreset, width) !== cameraPreset) setPreset(currentPreset);
     requestRender();
   }

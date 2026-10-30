@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { ZoneMap } from "@/components/ZoneMap";
+import { AdminTagScene } from "@/components/card3d/AdminTagScene";
 import { usePolling } from "@/hooks/usePolling";
 import { api } from "@/lib/api";
 import { fmtShort, NEEDS_LABEL } from "@/lib/format";
@@ -32,11 +33,14 @@ export default function TagsPage() {
   // 오른쪽 패널: 평소엔 목록, 새로 만들거나 수정할 때만 입력 폼
   const [mode, setMode] = useState<"list" | "form">("list");
   const [selected, setSelected] = useState<number | null>(null); // 지도 ↔ 목록에서 같이 강조할 태그
+  const [selectionRevision, setSelectionRevision] = useState(0);
+  const [siteName, setSiteName] = useState<string | undefined>(undefined);
 
   // 지도에서 핀을 누르면 목록의 그 태그로 이동
-  const selectTag = (id: number) => {
+  const selectTag = (id: number | null) => {
     setSelected(id);
-    if (mode !== "list") return;
+    setSelectionRevision((revision) => revision + 1);
+    if (id === null || mode !== "list") return;
     requestAnimationFrame(() => document.getElementById(`tag-${id}`)?.scrollIntoView({ block: "nearest", behavior: "smooth" }));
   };
 
@@ -116,34 +120,27 @@ export default function TagsPage() {
     }
   };
 
+  const map = <ZoneMap fit zones={zones} tags={data?.tags} pick={mode === "form" ? pick : null}
+    selectedTagId={selected} onTagClick={mode === "list" ? selectTag : undefined}
+    onPick={mode === "form" ? (x, y) => {
+      setPick({ x, y });
+      const z = zoneAt(zones, x, y);
+      if (z) set("zoneId", z);
+    } : undefined} />;
+
   return (
-    <AppShell title="위험 태그" fill>
+    <AppShell title="위험 태그" siteName={siteName} fill>
       <div className="grid gap-4 lg:h-full lg:grid-cols-[1fr_440px]">
-        <section className="card space-y-2 lg:flex lg:min-h-0 lg:flex-col lg:gap-2 lg:space-y-0">
+        {mode === "list" ? <AdminTagScene tags={data?.tags ?? []} selectedTagId={selected} selectionRevision={selectionRevision} onSelect={selectTag}
+          onSiteName={setSiteName} fallback={map} /> : <section className="card space-y-2 lg:flex lg:min-h-0 lg:flex-col lg:gap-2 lg:space-y-0">
           <div className="flex items-center justify-between">
             <h2 className="shrink-0 font-bold">현장 평면도</h2>
-            <span className="text-xs text-slate-500">3D 스캔 뷰어 자리 (연동 전 2D) · {mode === "form" ? "눌러서 위치 지정" : "핀을 누르면 목록에서 찾아요"}</span>
+            <span className="text-xs text-slate-500">눌러서 위치 지정</span>
           </div>
           <div className="lg:min-h-0 lg:flex-1">
-            <ZoneMap
-              fit
-              zones={zones}
-              tags={data?.tags}
-              pick={mode === "form" ? pick : null}
-              selectedTagId={selected}
-              onTagClick={mode === "list" ? selectTag : undefined}
-              onPick={
-                mode === "form"
-                  ? (x, y) => {
-                      setPick({ x, y });
-                      const z = zoneAt(zones, x, y);
-                      if (z) set("zoneId", z);
-                    }
-                  : undefined
-              }
-            />
+            {map}
           </div>
-        </section>
+        </section>}
 
         {mode === "list" ? (
           <section className="card flex flex-col gap-2 lg:min-h-0">
@@ -161,7 +158,7 @@ export default function TagsPage() {
                   <li
                     key={t.id}
                     id={`tag-${t.id}`}
-                    onClick={() => setSelected(t.id)}
+                    onClick={() => selectTag(t.id)}
                     className={`-mx-2 cursor-pointer rounded-lg px-2 py-2 text-sm hover:bg-slate-50 ${selected === t.id ? "bg-blue-50 ring-1 ring-blue-200 hover:bg-blue-50" : ""}`}
                   >
                     <div className="flex items-center gap-2">

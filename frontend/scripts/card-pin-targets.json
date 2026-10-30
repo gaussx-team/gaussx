@@ -51,6 +51,7 @@
     }
   },
   "requiredViews": {
+    "admin": ["MCC-3", "PU-07", "T-02", "P-203", "V-11", "F-2"],
     "work": ["MCC-3"],
     "nearby": ["MCC-3", "PU-07", "T-02", "P-203"],
     "nearby_mobile": ["MCC-3", "PU-07", "T-02", "P-203"],

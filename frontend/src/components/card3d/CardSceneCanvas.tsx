@@ -6,9 +6,11 @@ import type { CardSceneRuntime, SceneFrame } from "@/lib/card3d/runtime.mjs";
 
 type LoadState = { phase: "loading" | "ready" | "missing" | "error"; progress?: number | null; message?: string; count?: number };
 
-export default function CardSceneCanvas({ config, modelUrl, markers, preset, expanded, capture, onSelect, onHome, homeRevision }: {
+export default function CardSceneCanvas({ config, modelUrl, markers, preset, expanded, capture, onSelect, onHome, homeRevision,
+  mode = "card", selectedId, onStatusChange }: {
   config: CardSceneConfig; modelUrl: string; markers: SceneMarker[]; preset: string; expanded: boolean; capture: boolean;
   onSelect: (id: string) => void; onHome: () => void; homeRevision: number;
+  mode?: "card" | "admin"; selectedId?: string | null; onStatusChange?: (phase: LoadState["phase"]) => void;
 }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const runtime = useRef<CardSceneRuntime | null>(null);
@@ -16,6 +18,9 @@ export default function CardSceneCanvas({ config, modelUrl, markers, preset, exp
   const [load, setLoad] = useState<LoadState>({ phase: "loading", progress: null });
   const [frame, setFrame] = useState<SceneFrame | null>(null);
   const [attempt, setAttempt] = useState(0);
+  const admin = mode === "admin";
+
+  useEffect(() => { onStatusChange?.(load.phase); }, [load.phase, onStatusChange]);
 
   useEffect(() => {
     inputs.current = { markers, preset };
@@ -58,19 +63,26 @@ export default function CardSceneCanvas({ config, modelUrl, markers, preset, exp
   // A polling update may remove a tag before the next projected frame arrives.
   const visibleBoxes = frame?.boxes.filter((box) => markers.some((marker) => marker.id === box.id)) ?? [];
   return (
-    <div className={`card-space-canvas relative overflow-hidden bg-slate-200 ${expanded ? "h-[306px] md:aspect-video md:h-auto" : "h-[306px]"}`}
+    <div className={`card-space-canvas relative overflow-hidden bg-slate-200 ${admin ? "h-full min-h-[360px]" : expanded ? "h-[306px] md:aspect-video md:h-auto" : "h-[306px]"}`}
       data-card-scene data-status={load.phase} data-gaussian-count={load.count} data-preset={frame?.preset}
       data-camera-preset={frame?.cameraPreset} data-label-layout={compact ? "compact" : capture ? "presentation" : "normal"}>
       <canvas key={attempt} ref={canvas} className="block h-full w-full touch-none outline-none" role="img"
-        aria-label="배정된 작업 설비의 3D 공간. 드래그로 회전하고 두 손가락이나 휠로 확대할 수 있어요."
+        aria-label={admin ? "위험 태그가 표시된 3D 현장. 핀이나 목록을 누르면 설비 위치를 볼 수 있어요." : "배정된 작업 설비의 3D 공간. 드래그로 회전하고 두 손가락이나 휠로 확대할 수 있어요."}
         data-camera={frame ? JSON.stringify(frame.camera) : undefined} />
       {ready && <>
         <div data-scene-reserved className="card-scene-chip pointer-events-none absolute left-3 top-3 flex items-center gap-1.5 rounded-full border border-white/70 bg-white/95 px-2.5 py-1 text-[10px] font-semibold text-slate-700 shadow-sm">
           <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
           {config.displayName && <>{config.displayName} · </>}{config.presets[preset]?.label ?? "내 작업 위치"}
         </div>
-        {frame && <svg className="pointer-events-none absolute inset-0 h-full w-full" viewBox={`0 0 ${frame.width} ${frame.height}`} aria-hidden="true">
-          {visibleBoxes.map((box) => <g key={box.id}>
+        {frame && <svg className="pointer-events-none absolute inset-0 h-full w-full" viewBox={`0 0 ${frame.width} ${frame.height}`} aria-hidden={admin ? undefined : true}>
+          {visibleBoxes.map((box) => <g key={box.id} data-world-pin={box.id}
+            className={admin ? "pointer-events-auto cursor-pointer" : undefined} role={admin ? "button" : undefined}
+            tabIndex={admin ? 0 : undefined} aria-label={admin ? `${markers.find((m) => m.id === box.id)?.title} 태그 선택` : undefined}
+            aria-pressed={admin ? selectedId === box.id : undefined}
+            onClick={admin ? () => onSelect(box.id) : undefined}
+            onKeyDown={admin ? (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onSelect(box.id); } } : undefined}>
+            {admin && <circle cx={box.x} cy={box.y} r="13" fill="transparent" />}
+            {admin && selectedId === box.id && <circle cx={box.x} cy={box.y} r="11" fill="none" stroke="#2563eb" strokeWidth="3" />}
             <line x1={box.x} y1={box.y} x2={box.left + box.width / 2} y2={box.top + box.height / 2}
               stroke={box.kind === "work" ? "#2563eb" : markers.find((m) => m.id === box.id)?.official ? "#dc2626" : "#d97706"} strokeWidth="1.25" opacity=".8" />
             <circle cx={box.x} cy={box.y} r={compact ? 4 : 6} fill="white" opacity=".9" />
@@ -81,10 +93,11 @@ export default function CardSceneCanvas({ config, modelUrl, markers, preset, exp
           const marker = markers.find((m) => m.id === box.id);
           if (!marker) return null;
           return <button key={box.id} type="button" onClick={() => onSelect(marker.id)} data-world-label={marker.id}
-            className={`card-world-label absolute rounded-lg border border-white/90 border-l-[3px] bg-white/95 px-2 text-left shadow-md ${compact ? "flex items-center py-0 text-[10px] font-semibold" : "py-1.5"} ${marker.kind === "work" ? "border-l-blue-500" : marker.official ? "border-l-red-500" : "border-l-amber-500"}`}
+            data-equipment={marker.equipmentId ?? marker.id} aria-pressed={admin ? selectedId === marker.id : undefined}
+            className={`card-world-label absolute rounded-lg border border-white/90 border-l-[3px] bg-white/95 px-2 text-left shadow-md ${admin ? "flex items-center py-0 text-sm font-semibold" : compact ? "flex items-center py-0 text-[10px] font-semibold" : "py-1.5"} ${marker.kind === "work" ? "border-l-blue-500" : marker.official ? "border-l-red-500" : "border-l-amber-500"} ${admin && selectedId === marker.id ? "ring-2 ring-blue-500" : ""}`}
             style={{ left: box.left, top: box.top, width: box.width, height: box.height }}
-            aria-label={`${marker.title}, ${marker.kind === "work" ? "내 작업 위치" : `${marker.distanceMeters.toFixed(1)}미터, ${marker.substance || marker.hazard}${marker.official ? "" : ", 미검증"}`}`}>
-            {compact ? <span className="truncate">{markerShortName(marker)}</span> : <><span className="card-world-label-title flex items-center justify-between gap-1 text-[11px] font-bold text-slate-900">
+            aria-label={admin ? `${marker.title}, ${marker.official ? "공식" : "미검증"}` : `${marker.title}, ${marker.kind === "work" ? "내 작업 위치" : `${marker.distanceMeters.toFixed(1)}미터, ${marker.substance || marker.hazard}${marker.official ? "" : ", 미검증"}`}`}>
+            {compact || admin ? <span className="truncate">{markerShortName(marker)}</span> : <><span className="card-world-label-title flex items-center justify-between gap-1 text-[11px] font-bold text-slate-900">
               {marker.id}<span className={`card-world-label-distance ${marker.kind === "work" ? "text-[9px] text-blue-600" : "text-[10px] font-medium text-slate-500"}`}>
                 {marker.kind === "work" ? "내 작업" : `${marker.distanceMeters.toFixed(1)}m`}
               </span>
@@ -93,13 +106,13 @@ export default function CardSceneCanvas({ config, modelUrl, markers, preset, exp
           </button>;
         })}
         <button data-scene-reserved type="button" onClick={onHome} className="card-scene-home absolute bottom-10 right-3 rounded-full border border-white/80 bg-white/95 px-2.5 py-1.5 text-[10px] font-semibold text-slate-800 shadow-sm">
-          ↺ 내 위치로 돌아가기
+          ↺ {admin ? "전체 태그 보기" : "내 위치로 돌아가기"}
         </button>
       </>}
       {!ready && <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-slate-100 px-6 pb-7 text-center" role="status" aria-live="polite">
         {load.phase === "loading" ? <>
           <span className="h-7 w-7 animate-spin rounded-full border-2 border-slate-300 border-t-blue-600" />
-          <p className="text-sm font-semibold text-slate-700">내 작업 공간을 여는 중</p>
+          <p className="text-sm font-semibold text-slate-700">{admin ? "3D 현장을 여는 중" : "내 작업 공간을 여는 중"}</p>
           <p className="text-xs text-slate-500">{load.progress != null ? `${Math.min(100, Math.round(load.progress * 100))}%` : "처음에는 잠시 걸릴 수 있어요"}</p>
         </> : <>
           <span className="text-2xl text-slate-400" aria-hidden="true">◇</span>

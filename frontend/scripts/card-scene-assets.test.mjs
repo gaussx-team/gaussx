@@ -33,7 +33,7 @@ function surfacePinFixture() {
 test("scene preparation keeps surface pins across the actual source cameras' negative-zero JSON boundary", () => {
   const { pinned } = surfacePinFixture();
   const sourcePresets = Object.entries(pinned.presets)
-    .filter(([id]) => !["work", "nearby", "nearby_mobile"].includes(id))
+    .filter(([id]) => !["work", "nearby", "nearby_mobile", "admin"].includes(id))
     .map(([id, preset]) => ({ id, label: preset.label, frame: { matrix: structuredClone(preset.matrix) } }));
   // These two -0 values are present in the original viewer/data/v2d/presets.json.
   for (const id of ["upper_overview", "P-203"]) {
@@ -181,6 +181,20 @@ test("the context camera places the work and all three hazards in front and insi
       assert.ok(Math.abs(local[0] / -local[2]) < tanHalfHorizontal, `${id} must fit horizontally`);
       assert.ok(Math.abs(local[1] / -local[2]) < tanHalfHorizontal / aspect, `${id} must fit vertically in ${preset}`);
     }
+  }
+});
+
+test("the admin overview keeps all six real surface pins inside its tall panel", () => {
+  const preset = config.presets.admin;
+  const tanHalfHorizontal = Math.tan(preset.horizontalFovDegrees * Math.PI / 360);
+  for (const item of config.anchors) {
+    const position = preset.pinPositions[item.id];
+    assert.ok(position, `${item.id} must have a visible mesh surface in the admin view`);
+    const delta = position.map((value, axis) => value - preset.matrix[axis][3]);
+    const local = [0, 1, 2].map((axis) => delta.reduce((sum, value, row) => sum + value * preset.matrix[row][axis], 0));
+    assert.ok(local[2] < 0);
+    assert.ok(Math.abs(local[0] / -local[2]) < tanHalfHorizontal, `${item.id} must fit horizontally`);
+    assert.ok(Math.abs(local[1] / -local[2]) < tanHalfHorizontal / (668 / 670), `${item.id} must fit vertically`);
   }
 });
 

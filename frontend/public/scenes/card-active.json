@@ -2,7 +2,7 @@
   "version": 1,
   "id": "a-v2d",
   "label": "A구역",
-  "displayName": "",
+  "displayName": "시연용 가상 공장",
   "model": {
     "url": "/scenes/a-v2d.spz",
     "format": "spz",
@@ -828,6 +828,68 @@
         ],
         "F-2": null
       }
+    },
+    "admin": {
+      "label": "현장 전체",
+      "horizontalFovDegrees": 96,
+      "matrix": [
+        [
+          0.9915095306014198,
+          0.010533302620023242,
+          0.12960671380166688,
+          2
+        ],
+        [
+          0.1300340368001862,
+          -0.08031643247767706,
+          -0.9882511927377101,
+          0.9
+        ],
+        [
+          -1.3877787807814457e-17,
+          0.9967137604196973,
+          -0.0810041961260417,
+          2.4
+        ],
+        [
+          0,
+          0,
+          0,
+          1
+        ]
+      ],
+      "pinPositions": {
+        "MCC-3": [
+          4.0579748,
+          4.8618689,
+          1.2317566
+        ],
+        "PU-07": [
+          2.4878592,
+          7.3091307,
+          0.7607498
+        ],
+        "T-02": [
+          3.2210622,
+          11.663434,
+          2.2191017
+        ],
+        "P-203": [
+          -1.5326123,
+          5.7760005,
+          1.1461715
+        ],
+        "V-11": [
+          -1.1960789,
+          3.7301662,
+          0.6246606
+        ],
+        "F-2": [
+          5.1569118,
+          6.4281855,
+          5.5778832
+        ]
+      }
     }
   },
   "metadata": {
@@ -842,7 +904,7 @@
     "surfacePins": {
       "schema": "blender-camera-raycast-v1",
       "sourceBlendSha256": "3a4e5a8b1b2085f485a4a4d225dac78d701365c981ad1832a3d366e5bf0b80b0",
-      "targetsSha256": "f2f1934f630fe225e523c1ad3ff5f7974f13105dca7aa68b3632d0c9e8444057",
+      "targetsSha256": "4d1d93b9930cb8e9332c5d2971fb691d953f4654225b9cb26270f78e2718a64e",
       "coordinateSystem": "Blender Z-up meters",
       "sourceBlend": "scene/factory-v2-d-claude/scene.blend",
       "distanceAnchorsUnchanged": true

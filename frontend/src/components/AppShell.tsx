@@ -18,6 +18,7 @@ const NAV = [
 
 interface Props {
   title: string;
+  siteName?: string;
   crumbs?: { href: string; label: string }[];
   actions?: React.ReactNode;
   // true 면 넓은 화면(lg 이상)에서 페이지가 화면 높이에 딱 맞는다 (관제·로봇처럼 스크롤 없이 보는 화면)
@@ -25,7 +26,7 @@ interface Props {
   children: React.ReactNode;
 }
 
-export function AppShell({ title, crumbs, actions, fill = false, children }: Props) {
+export function AppShell({ title, siteName = "데모 현장 · 4×3m", crumbs, actions, fill = false, children }: Props) {
   const path = usePathname();
   const active = (href: string) => (href === "/" ? path === "/" : path === href || path.startsWith(`${href}/`));
 
@@ -35,7 +36,7 @@ export function AppShell({ title, crumbs, actions, fill = false, children }: Pro
         <div className="flex items-center gap-3 px-4 py-3 lg:block lg:px-5 lg:py-5">
           <Link href="/" className="block shrink-0">
             <Logo className="h-7 w-auto text-slate-900" />
-            <div className="mt-1.5 hidden text-xs text-slate-500 lg:block">데모 현장 · 4×3m</div>
+            <div className="mt-1.5 hidden text-xs text-slate-500 lg:block">{siteName}</div>
           </Link>
           <nav className="flex gap-1 overflow-x-auto lg:mt-6 lg:flex-col">
             {NAV.map((n) => (

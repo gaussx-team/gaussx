@@ -4,6 +4,7 @@ export type MatrixRows = [number[], number[], number[], number[]];
 export interface ScenePreset {
   label: string;
   matrix: MatrixRows;
+  horizontalFovDegrees?: number;
   pinPositions?: Record<string, Point3 | null>;
 }
 
@@ -35,6 +36,7 @@ export interface SceneTag {
 
 export interface SceneMarker {
   id: string;
+  equipmentId?: string;
   position: Point3;
   kind: "work" | "hazard";
   title: string;
@@ -59,6 +61,8 @@ export function validateSceneConfig(value: unknown): CardSceneConfig {
     || !c.presets?.work || !c.presets?.nearby
     || Object.values(c.presets).some((p) => !p.label || !Array.isArray(p.matrix) || p.matrix.length !== 4
       || p.matrix.some((r) => !Array.isArray(r) || r.length !== 4 || !r.every(Number.isFinite))
+      || (p.horizontalFovDegrees !== undefined && (!Number.isFinite(p.horizontalFovDegrees)
+        || p.horizontalFovDegrees < 10 || p.horizontalFovDegrees > 140))
       || (p.pinPositions !== undefined && (!p.pinPositions || typeof p.pinPositions !== "object" || Array.isArray(p.pinPositions)
         || Object.entries(p.pinPositions).some(([id, position]) => !c.anchors.some((a) => a.id === id)
           || (position !== null && !isPoint(position))))))) {
@@ -92,14 +96,40 @@ export function scenePresetForWidth(config: CardSceneConfig, preset: string, wid
   return preset === "nearby" && width < 480 && config.presets.nearby_mobile ? "nearby_mobile" : preset;
 }
 
+export function sceneHorizontalFov(config: CardSceneConfig, preset: string): number {
+  return config.presets[preset]?.horizontalFovDegrees ?? config.horizontalFovDegrees;
+}
+
 // Surface pins depend on the camera; metric anchors remain stable for distances.
 export function markerPosition(config: CardSceneConfig, marker: SceneMarker, preset: string): Point3 | null {
   const pins = config.presets[preset]?.pinPositions;
-  return pins === undefined ? marker.position : pins[marker.id] ?? null;
+  return pins === undefined ? marker.position : pins[marker.equipmentId ?? marker.id] ?? null;
 }
 
 export function markerShortName(marker: SceneMarker): string {
-  return marker.kind === "work" ? `내 작업 ${marker.id}` : `${marker.substance.trim().split(/\s+/)[0] || "설비"} ${marker.id}`;
+  const equipment = marker.equipmentId ?? marker.id;
+  return marker.kind === "work" ? `내 작업 ${equipment}` : `${marker.substance.trim().split(/\s+/)[0] || "설비"} ${equipment}`;
+}
+
+export function adminScenePreset(config: CardSceneConfig, equipmentId?: string | null): string {
+  if (equipmentId && config.presets[equipmentId]) return equipmentId;
+  return config.presets.admin ? "admin" : "nearby";
+}
+
+export function adminSceneMarkers(config: CardSceneConfig, tags: SceneTag[]): SceneMarker[] {
+  const ids = config.anchors.map((a) => a.id);
+  const markers: SceneMarker[] = [];
+  for (const tag of tags) {
+    if (tag.status !== "active") continue;
+    const equipmentId = equipmentIn(tag.title, ids);
+    const anchor = config.anchors.find((a) => a.id === equipmentId);
+    if (!anchor) continue;
+    markers.push({
+      id: String(tag.id), equipmentId: anchor.id, position: anchor.position, kind: "hazard", title: tag.title,
+      hazard: tag.hazard, substance: tag.substance ?? "", official: tag.official, distanceMeters: 0,
+    });
+  }
+  return markers;
 }
 
 export function sceneMarkers(config: CardSceneConfig, equipment: string, workTags: SceneTag[], currentTags: SceneTag[]): SceneMarker[] {
