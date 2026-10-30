@@ -1,0 +1,62 @@
+{
+  "schema": "blender-card-pin-targets-v1",
+  "coordinateSystem": "Blender Z-up meters",
+  "equipment": {
+    "MCC-3": {
+      "objects": ["MCC_3"],
+      "referenceObject": "anchor_MCC-3",
+      "aimFraction": [0.02, 0.5, 0.5],
+      "searchOffsets": [[0, 0, 0], [0, -0.25, 0], [0, 0.25, 0], [0, 0, -0.3], [0, 0, 0.3]],
+      "normal": [-1, 0, 0],
+      "normalMinDot": 0.5,
+      "region": [[0, 0.5], [0, 1], [0.15, 0.85]],
+      "meaning": "Cabinet aisle-facing -X front, below the roof and above the plinth"
+    },
+    "PU-07": {
+      "objects": ["PU_07"],
+      "referenceObject": "anchor_PU-07",
+      "aimFraction": [0.18, 0.5, 0.5],
+      "searchOffsets": [[0, 0, 0], [0.1, 0, 0], [-0.08, 0, 0], [0, 0, 0.1], [0, 0, -0.08]],
+      "region": [[0, 0.36], [0, 1], [0.25, 0.9]],
+      "meaning": "Pump casing at the -X end, excluding the motor and concrete base"
+    },
+    "T-02": {
+      "objects": ["T_02"],
+      "referenceObject": "anchor_T-02",
+      "aimFraction": [0.5, 0.5, 0.5],
+      "searchOffsets": [[0, 0, 0], [-0.25, 0, 0], [0.25, 0, 0], [0, 0, 0.2], [0, 0, -0.2]],
+      "region": [[0, 1], [0, 1], [0.3, 0.7]],
+      "meaning": "Middle of the tank shell, excluding its bund, feet and roof"
+    },
+    "P-203": {
+      "objects": ["Rack_Flange_1_5.8_Pair_FlangeA", "Rack_Flange_1_5.8_Pair_FlangeB"],
+      "referenceObject": "Rack_Flange_1_5.8_Pair_Gasket",
+      "anchorOffset": [0, 0, 0.12],
+      "searchOffsets": [[0, 0, 0], [0.04, 0, -0.005], [-0.04, 0, -0.005], [0.1, 0, -0.05], [-0.1, 0, -0.05]],
+      "meaning": "Actual pipe flange annulus, offset from the hollow pipe axis"
+    },
+    "V-11": {
+      "objects": ["V_11"],
+      "referenceObject": "anchor_V-11",
+      "aimFraction": [0.5, 0.5, 0.4],
+      "searchOffsets": [[0, 0, 0], [0, 0, 0.1], [0.1, 0, 0], [-0.1, 0, 0]],
+      "meaning": "Valve body"
+    },
+    "F-2": {
+      "objects": ["F_2_Win_1"],
+      "referenceObject": "anchor_F-2",
+      "aimFraction": [0.5, 0.5, 0.5],
+      "searchOffsets": [[0, 0, 0], [0, 0.1, 0], [0, -0.1, 0], [0, 0, 0.1]],
+      "meaning": "Window fan housing or blade surface"
+    }
+  },
+  "requiredViews": {
+    "work": ["MCC-3"],
+    "nearby": ["MCC-3", "PU-07", "T-02", "P-203"],
+    "nearby_mobile": ["MCC-3", "PU-07", "T-02", "P-203"],
+    "MCC-3": ["MCC-3"],
+    "PU-07": ["PU-07"],
+    "T-02": ["T-02"],
+    "P-203": ["P-203"]
+  }
+}

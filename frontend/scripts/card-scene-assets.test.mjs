@@ -6,11 +6,135 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { gzipSync } from "node:zlib";
-import { readSpzHeader } from "./prepare-card-scene.mjs";
+import { makeConfig, preserveSurfacePins, readSpzHeader } from "./prepare-card-scene.mjs";
 import { fetchCardScene } from "./fetch-card-scene.mjs";
 
 const config = JSON.parse(await readFile(new URL("../public/scenes/card-active.json", import.meta.url), "utf8"));
 const anchor = (id) => config.anchors.find((item) => item.id === id).position;
+
+function surfacePinFixture() {
+  const base = structuredClone(config);
+  delete base.metadata.surfacePins;
+  base.metadata.anchorLimit = "기존 거리 기준 앵커는 가시 표면점이 아님";
+  for (const preset of Object.values(base.presets)) delete preset.pinPositions;
+  const pinned = structuredClone(base);
+  pinned.presets.work.pinPositions = { "MCC-3": [4.1, 4.6, 2], "P-203": null };
+  pinned.presets.nearby.pinPositions = { "PU-07": [3.1, 7.5, 1.2], "T-02": null };
+  pinned.presets.nearby_mobile.pinPositions = { "MCC-3": null };
+  pinned.metadata.surfacePins = {
+    schema: "blender-camera-raycast-v1",
+    sourceBlendSha256: "a".repeat(64),
+    generatedAt: "2026-10-31T00:00:00.000Z",
+  };
+  pinned.metadata.anchorLimit = "anchors는 거리 기준점, pinPositions는 카메라별 표면점이며 null은 가려짐";
+  return { base, pinned };
+}
+
+test("scene preparation keeps surface pins across the actual source cameras' negative-zero JSON boundary", () => {
+  const { pinned } = surfacePinFixture();
+  const sourcePresets = Object.entries(pinned.presets)
+    .filter(([id]) => !["work", "nearby", "nearby_mobile"].includes(id))
+    .map(([id, preset]) => ({ id, label: preset.label, frame: { matrix: structuredClone(preset.matrix) } }));
+  // These two -0 values are present in the original viewer/data/v2d/presets.json.
+  for (const id of ["upper_overview", "P-203"]) {
+    sourcePresets.find((preset) => preset.id === id).frame.matrix[2][0] = -0;
+    assert.ok(Object.is(pinned.presets[id].matrix[2][0], 0));
+  }
+  const inputs = {
+    scene: {
+      model: { count: pinned.model.count }, background: { sRGB: pinned.background },
+      intrinsics: { w: 1280, fx: 853.3333333333334 },
+    },
+    anchors: { anchors: structuredClone(pinned.anchors) },
+    presets: sourcePresets,
+    modelUrl: pinned.model.url,
+    format: pinned.model.format,
+    sourceSha256: pinned.metadata.sourceSha256,
+    previousConfig: pinned,
+  };
+  const prepared = makeConfig(inputs);
+  assert.deepEqual(prepared.anchors, pinned.anchors, "real distance anchors must remain unchanged");
+  assert.deepEqual(prepared.presets, pinned.presets, "all actual cameras and raycast points must survive regeneration");
+  assert.deepEqual(prepared, pinned, "the actual cache comparison must accept the serialized configuration unchanged");
+  const cameraChanged = structuredClone(inputs);
+  cameraChanged.presets.find((preset) => preset.id === "upper_overview").frame.matrix[0][3] += 0.001;
+  const invalidated = makeConfig(cameraChanged);
+  assert.equal(invalidated.metadata.surfacePins, undefined, "a real camera move must still discard old raycasts");
+  assert.ok(Object.values(invalidated.presets).every((preset) => preset.pinPositions === undefined));
+});
+
+test("surface pins preserve visible points, hidden nulls and provenance without changing distance anchors", () => {
+  const { base, pinned } = surfacePinFixture();
+  const originalBase = structuredClone(base);
+  const originalPinned = structuredClone(pinned);
+  const prepared = preserveSurfacePins(base, pinned);
+  assert.deepEqual(prepared, pinned, "the prepared config must still match the existing config for the unchanged path");
+  assert.deepEqual(preserveSurfacePins(base, prepared), pinned, "repeated preparation must preserve the same surface results");
+  assert.deepEqual(prepared.anchors, base.anchors);
+  assert.equal(prepared.presets.work.pinPositions["P-203"], null);
+  assert.equal(prepared.presets.nearby.pinPositions["T-02"], null);
+  assert.deepEqual(base, originalBase, "preparation must not mutate its generated base config");
+  assert.deepEqual(pinned, originalPinned, "preparation must not mutate the existing config");
+  prepared.presets.work.pinPositions["MCC-3"][0] = 0;
+  prepared.metadata.surfacePins.generatedAt = "changed";
+  assert.deepEqual(pinned, originalPinned, "preserved points and provenance must be independent copies");
+});
+
+test("surface pins are discarded for a different scene, model, source, distance anchors or coordinate frame", () => {
+  const changes = [
+    ["scene", (scene) => { scene.id = "fullsite-v3r"; }],
+    ["model URL", (scene) => { scene.model.url = "/scenes/replaced.spz"; }],
+    ["model count", (scene) => { scene.model.count += 1; }],
+    ["model SH", (scene) => { scene.model.shDegree = 2; }],
+    ["source SHA", (scene) => { scene.metadata.sourceSha256 = "b".repeat(64); }],
+    ["anchor", (scene) => { scene.anchors[0].position[2] += 0.1; }],
+    ["coordinate system", (scene) => { scene.coordinateSystem = "Y-up meters"; }],
+    ["coordinate transform", (scene) => { scene.metadata.coordinateTransform = "rotated"; }],
+    ["FOV", (scene) => { scene.horizontalFovDegrees += 1; }],
+  ];
+  for (const [name, change] of changes) {
+    const { base, pinned } = surfacePinFixture();
+    change(base);
+    assert.deepEqual(preserveSurfacePins(base, pinned), base, `${name} must invalidate previous raycast results`);
+  }
+});
+
+test("surface pins are not reused after any preset camera is changed, added or removed", () => {
+  const changes = [
+    ["work camera", (scene) => { scene.presets.work.matrix[0][3] += 0.01; }],
+    ["mobile camera", (scene) => { scene.presets.nearby_mobile.matrix[1][3] += 0.01; }],
+    ["added camera", (scene) => { scene.presets.newCamera = structuredClone(scene.presets.work); }],
+    ["removed camera", (scene) => { delete scene.presets.nearby; }],
+  ];
+  for (const [name, change] of changes) {
+    const { base, pinned } = surfacePinFixture();
+    change(base);
+    assert.deepEqual(preserveSurfacePins(base, pinned), base, `${name} must invalidate the old camera-specific results`);
+  }
+});
+
+test("surface pins reject legacy or malformed provenance and invalid per-equipment positions", () => {
+  const changes = [
+    ["no provenance", (scene) => { delete scene.metadata.surfacePins; }],
+    ["wrong schema", (scene) => { scene.metadata.surfacePins.schema = "unverified-v0"; }],
+    ["missing blend SHA", (scene) => { delete scene.metadata.surfacePins.sourceBlendSha256; }],
+    ["invalid blend SHA", (scene) => { scene.metadata.surfacePins.sourceBlendSha256 = "unknown"; }],
+    ["missing anchor explanation", (scene) => { delete scene.metadata.anchorLimit; }],
+    ["unknown equipment", (scene) => { scene.presets.work.pinPositions.unknown = [1, 2, 3]; }],
+    ["non-finite point", (scene) => { scene.presets.work.pinPositions["MCC-3"][0] = NaN; }],
+    ["truncated point", (scene) => { scene.presets.work.pinPositions["MCC-3"] = [1, 2]; }],
+    ["null record", (scene) => { scene.presets.work.pinPositions = null; }],
+    ["array record", (scene) => { scene.presets.work.pinPositions = []; }],
+  ];
+  for (const [name, change] of changes) {
+    const { base, pinned } = surfacePinFixture();
+    change(pinned);
+    assert.deepEqual(preserveSurfacePins(base, pinned), base, `${name} must not be copied into a new preparation`);
+  }
+  const { base } = surfacePinFixture();
+  assert.deepEqual(preserveSurfacePins(base, undefined), base);
+  assert.deepEqual(preserveSurfacePins(base, base), base, "legacy anchor-only configs must retain the normal preparation path");
+});
 
 test("the checked-in scene is a local model with a complete Z-up camera and anchor contract", () => {
   assert.equal(config.version, 1);

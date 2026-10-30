@@ -4,6 +4,7 @@ export type MatrixRows = [number[], number[], number[], number[]];
 export interface ScenePreset {
   label: string;
   matrix: MatrixRows;
+  pinPositions?: Record<string, Point3 | null>;
 }
 
 export interface CardSceneConfig {
@@ -57,7 +58,10 @@ export function validateSceneConfig(value: unknown): CardSceneConfig {
     || !c.anchors.some((a) => a.id === c.defaultWorkEquipment)
     || !c.presets?.work || !c.presets?.nearby
     || Object.values(c.presets).some((p) => !p.label || !Array.isArray(p.matrix) || p.matrix.length !== 4
-      || p.matrix.some((r) => !Array.isArray(r) || r.length !== 4 || !r.every(Number.isFinite)))) {
+      || p.matrix.some((r) => !Array.isArray(r) || r.length !== 4 || !r.every(Number.isFinite))
+      || (p.pinPositions !== undefined && (!p.pinPositions || typeof p.pinPositions !== "object" || Array.isArray(p.pinPositions)
+        || Object.entries(p.pinPositions).some(([id, position]) => !c.anchors.some((a) => a.id === id)
+          || (position !== null && !isPoint(position))))))) {
     throw new Error("3D 장면 설정을 확인해 주세요.");
   }
   return c;
@@ -86,6 +90,12 @@ export const distance3d = (a: Point3, b: Point3) => Math.hypot(a[0] - b[0], a[1]
 
 export function scenePresetForWidth(config: CardSceneConfig, preset: string, width: number): string {
   return preset === "nearby" && width < 480 && config.presets.nearby_mobile ? "nearby_mobile" : preset;
+}
+
+// Surface pins depend on the camera; metric anchors remain stable for distances.
+export function markerPosition(config: CardSceneConfig, marker: SceneMarker, preset: string): Point3 | null {
+  const pins = config.presets[preset]?.pinPositions;
+  return pins === undefined ? marker.position : pins[marker.id] ?? null;
 }
 
 export function markerShortName(marker: SceneMarker): string {

@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { readFile, writeFile, mkdir, rename, rm } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { parseArgs } from "node:util";
+import { isDeepStrictEqual, parseArgs } from "node:util";
 import { gunzipSync } from "node:zlib";
 
 const frontend = fileURLToPath(new URL("../", import.meta.url));
@@ -55,7 +55,51 @@ function readPlyHeader(bytes) {
   return { count, shDegree: 3 };
 }
 
-function makeConfig({ scene, anchors, presets, modelUrl, format, sourceSha256 }) {
+export function preserveSurfacePins(config, previous) {
+  const provenance = previous?.metadata?.surfacePins;
+  if (config.id !== "a-v2d" || previous?.id !== config.id || previous.version !== config.version
+    || !isDeepStrictEqual(previous.model, config.model)
+    || previous.metadata?.sourceSha256 !== config.metadata.sourceSha256
+    || previous.coordinateSystem !== config.coordinateSystem
+    || previous.metadata?.coordinateTransform !== config.metadata.coordinateTransform
+    || previous.horizontalFovDegrees !== config.horizontalFovDegrees
+    || !isDeepStrictEqual(previous.anchors, config.anchors)
+    || provenance?.schema !== "blender-camera-raycast-v1"
+    || !/^[a-f0-9]{64}$/i.test(provenance.sourceBlendSha256 ?? "")
+    || typeof previous.metadata.anchorLimit !== "string" || !previous.metadata.anchorLimit.trim()) return config;
+
+  const presetIds = Object.keys(config.presets).sort();
+  if (!isDeepStrictEqual(Object.keys(previous.presets ?? {}).sort(), presetIds)
+    || presetIds.some((id) => !isDeepStrictEqual(previous.presets[id]?.matrix, config.presets[id].matrix))) return config;
+
+  const anchorIds = new Set(config.anchors.map(({ id }) => id));
+  let hasPins = false;
+  for (const id of presetIds) {
+    const positions = previous.presets[id].pinPositions;
+    if (positions === undefined) continue;
+    if (!positions || typeof positions !== "object" || Array.isArray(positions)) return config;
+    for (const [anchorId, position] of Object.entries(positions)) {
+      if (!anchorIds.has(anchorId) || (position !== null
+        && (!Array.isArray(position) || position.length !== 3 || !position.every(Number.isFinite)))) return config;
+      hasPins = true;
+    }
+  }
+  if (!hasPins) return config;
+  return {
+    ...config,
+    presets: Object.fromEntries(Object.entries(config.presets).map(([id, preset]) => [id,
+      previous.presets[id].pinPositions === undefined ? preset : {
+        ...preset, pinPositions: structuredClone(previous.presets[id].pinPositions),
+      }])),
+    metadata: {
+      ...config.metadata,
+      anchorLimit: previous.metadata.anchorLimit,
+      surfacePins: structuredClone(provenance),
+    },
+  };
+}
+
+export function makeConfig({ scene, anchors, presets, modelUrl, format, sourceSha256, previousConfig }) {
   const named = Object.fromEntries(presets.map((preset) => [preset.id, {
     label: preset.label,
     matrix: preset.frame.matrix,
@@ -63,7 +107,7 @@ function makeConfig({ scene, anchors, presets, modelUrl, format, sourceSha256 })
   const length = Math.hypot(7.7, 0.6);
   const c = 7.7 / length;
   const s = 0.6 / length;
-  return {
+  const config = {
     version: 1,
     id: "a-v2d",
     label: "A구역",
@@ -104,6 +148,9 @@ function makeConfig({ scene, anchors, presets, modelUrl, format, sourceSha256 })
       anchorLimit: "P-203는 지정 플랜지 중심, 나머지는 원본 label anchor로 가시 표면점이 아님",
     },
   };
+  // Match persisted JSON for both raycast validation and the preparation cache:
+  // two original Blender camera matrices contain -0, which JSON writes as 0.
+  return preserveSurfacePins(JSON.parse(JSON.stringify(config)), previousConfig);
 }
 
 async function atomicWrite(file, bytes) {
@@ -137,15 +184,17 @@ export async function prepareCardScene({ source, output }) {
   }
   await mkdir(scenesDirectory, { recursive: true });
   const receiptPath = `${output}.receipt.json`;
+  let previousConfig;
   try {
+    previousConfig = await readJson(configPath);
     const old = await readJson(receiptPath);
     const existingPath = path.join(scenesDirectory, old.output.filename);
     if (path.dirname(existingPath) !== scenesDirectory) throw new Error("Invalid cached asset path");
     const existing = await readFile(existingPath);
     const modelUrl = `/scenes/${old.output.filename}`;
-    const expectedConfig = makeConfig({ scene, anchors, presets, modelUrl, format: old.output.format, sourceSha256 });
+    const expectedConfig = makeConfig({ scene, anchors, presets, modelUrl, format: old.output.format, sourceSha256, previousConfig });
     if (old.source.sha256 === sourceSha256 && old.output.sha256 === sha256(existing)
-      && JSON.stringify(await readJson(configPath)) === JSON.stringify(expectedConfig)) {
+      && isDeepStrictEqual(previousConfig, expectedConfig)) {
       if (old.output.format === "spz") {
         const header = readSpzHeader(existing);
         if (header.count !== sourceHeader.count || header.shDegree !== 3
@@ -187,7 +236,7 @@ export async function prepareCardScene({ source, output }) {
   await atomicWrite(output, bytes);
   if (sha256(await readFile(output)) !== sha256(bytes)) throw new Error("Written asset hash mismatch");
   const modelUrl = `/scenes/${path.basename(output)}`;
-  const config = makeConfig({ scene, anchors, presets, modelUrl, format, sourceSha256 });
+  const config = makeConfig({ scene, anchors, presets, modelUrl, format, sourceSha256, previousConfig });
   await atomicWrite(configPath, JSON.stringify(config, null, 2) + "\n");
   const receipt = {
     schema: "gaussx-card-scene-preparation-v1",

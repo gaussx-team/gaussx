@@ -68,9 +68,23 @@ npm run dev -- --port 3100
 
 작업 제목 또는 작업에 묶인 유일한 설비 태그의 ID를 장면 앵커와 연결한다. 위치를 알 수 없는 작업에는 임의의 MCC-3 위치를 표시하지 않는다. 내 작업 태그는 보낸 순간의 카드 버전을, 주변 공정 태그는 `/api/tags`에서 받은 현재 active 버전을 표시한다. 주변 정보는 10초마다 갱신하며 미검증 태그는 주황색으로 구분한다.
 
-기존 `Tag.x/y`는 평면도·도면·로봇의 별도 바닥 좌표이므로 덮어쓰지 않았다. 3D 위치는 장면 설정의 `설비 ID → [x,y,z]` 매핑에 있다. 기존 작업의 `tagIds`, 확인 항목, API·DB 스키마, 백엔드 seed는 변경하지 않았다.
+기존 `Tag.x/y`는 평면도·도면·로봇의 별도 바닥 좌표이므로 덮어쓰지 않았다. 거리 기준은 장면 설정의 `anchors`, 화면 핀은 각 `presets`의 `pinPositions`에 있다. 기존 작업의 `tagIds`, 확인 항목, API·DB 스키마, 백엔드 seed는 변경하지 않았다.
 
-MCC-3 앵커에서 PU-07 3.2m, P-203 6.1m, T-02 7.2m이다. 표시는 **설비 앵커 간 3차원 직선거리**이며 보행거리·사람의 실시간 위치·위험 영향반경이 아니다. `nearbyRadiusMeters: 8`은 이번 시연에서 주변 태그를 고르는 표시 범위다. 앵커는 설비 메타데이터의 기준점이므로 표면과 일치하지 않을 수 있고, 가림을 판정하지 않아 가려진 설비도 태그로 보인다.
+MCC-3 앵커에서 PU-07 3.2m, P-203 6.1m, T-02 7.2m이다. 표시는 **설비 기준점 간 3차원 직선거리**이며 보행거리·사람의 실시간 위치·위험 영향반경이 아니다. `nearbyRadiusMeters: 8`은 이번 시연에서 주변 태그를 고르는 표시 범위다. 이 기준점과 거리는 카메라를 바꿔도 유지한다.
+
+## 실제 설비 표면의 핀 다시 계산하기
+
+화면 핀은 Blender 학습 원본의 평가된 MESH에 카메라에서 raycast한 실제 교차점이다. `presets.<시점>.pinPositions.<설비 ID>`를 쓰며, 폰은 `nearby_mobile` 값을 선택한다. 배전반 앞면·펌프 본체·탱크 중간 몸통·배관 플랜지 면의 선택 기준은 `frontend/scripts/card-pin-targets.json`에 있다. 가려졌거나 지정 부위를 볼 수 없는 핀은 `null`로 생략하고 아래 목록은 유지한다. 드래그 중에도 선택한 프리셋의 표면 점에 붙으며, 자유 시점에서의 가림은 실시간으로 다시 계산하지 않는다.
+
+저장소 루트의 PowerShell에서 다음을 실행한다. Blender 장면은 읽기만 하며 저장하지 않는다. 결과는 JSON 설정과 별도 검증 기록에만 쓴다.
+
+```powershell
+& '../virtual-site/tools/blender-5.2.3-windows-x64/blender.exe' --background --factory-startup --disable-autoexec --python-exit-code 1 --python frontend/scripts/export-card-pin-surfaces.py -- --blend ../virtual-site/scene/factory-v2-d-claude/scene.blend --config frontend/public/scenes/card-active.json --audit ../virtual-site/tools/gaussx-3d/pins-a-v2d.json --write
+```
+
+전체동으로 바꿀 때는 새 모델·기준점·카메라 설정을 먼저 준비하고, `--blend ../virtual-site/scene/factory-v3r/scene.blend`로 같은 스크립트를 실행한다. 현재 A 설비 이름은 전체동에도 유지돼 같은 대상 매핑을 쓸 수 있다. 추가 설비는 대상 MESH·몸통 부위·기준점 대응을 매핑에 넣는다. `--write`를 빼면 설정을 바꾸지 않고 검증 기록만 만든다.
+
+스크립트는 Blender Z-up 미터·identity 변환, Blender의 실제 기준 객체와 설정 앵커의 0.1mm 이내 일치, 카메라별 첫 표면 교차·가림, 원본 `.blend`의 실행 전후 SHA256을 확인한다. 원본·카메라가 같을 때 `scene:prepare`는 계산한 핀을 보존하고 `unchanged`로 끝난다. 모델·기준점·카메라가 바뀌면 이전 핀을 재사용하지 않으므로 새 설정에서 다시 계산한다.
 
 ## 확인
 

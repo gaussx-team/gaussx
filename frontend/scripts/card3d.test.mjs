@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { assignedEquipment, distance3d, equipmentIn, layoutMarkerBoxes, markerShortName, sceneMarkers, sceneModelUrl, scenePresetForWidth, validateSceneConfig } from "../src/lib/card3d/scene.ts";
+import { assignedEquipment, distance3d, equipmentIn, layoutMarkerBoxes, markerPosition, markerShortName, sceneMarkers, sceneModelUrl, scenePresetForWidth, validateSceneConfig } from "../src/lib/card3d/scene.ts";
 
 const config = validateSceneConfig(JSON.parse(await readFile(new URL("../public/scenes/card-active.json", import.meta.url), "utf8")));
 const tag = (title, changes = {}) => ({ id: 1, title, hazard: "누출 위험", substance: "황산", official: true, status: "active", version: 1, ...changes });
@@ -60,6 +60,8 @@ test("bad scene metadata fails at the module boundary", () => {
     (c) => { c.anchors.push(c.anchors[0]); },
     (c) => { c.presets.work.matrix[0] = [1, 0]; },
     (c) => { delete c.presets.nearby; },
+    (c) => { c.presets.nearby.pinPositions = { "T-02": [1, NaN, 3] }; },
+    (c) => { c.presets.nearby.pinPositions = { UNKNOWN: [1, 2, 3] }; },
   ]) {
     const broken = structuredClone(config);
     mutate(broken);
@@ -128,4 +130,31 @@ test("the phone context camera is selected by canvas width without changing the 
   const replacement = structuredClone(config);
   delete replacement.presets.nearby_mobile;
   assert.equal(scenePresetForWidth(replacement, "nearby", 311), "nearby");
+});
+
+test("preset-specific mesh surfaces position pins while reference anchors keep all distances stable", () => {
+  const markers = sceneMarkers(config, "MCC-3", workTags, currentTags);
+  for (const marker of markers) {
+    for (const preset of ["nearby", "nearby_mobile", marker.id]) {
+      const position = markerPosition(config, marker, preset);
+      assert.deepEqual(position, config.presets[preset].pinPositions[marker.id]);
+      assert.ok(position && position.every(Number.isFinite));
+      assert.ok(distance3d(position, marker.position) > 0.02, `${preset}/${marker.id} must use its surface, not the floating reference`);
+    }
+  }
+  assert.notDeepEqual(config.presets.nearby.pinPositions, config.presets.nearby_mobile.pinPositions);
+  assert.deepEqual(markers.map((m) => m.distanceMeters.toFixed(1)), ["0.0", "3.2", "6.1", "7.2"]);
+  assert.ok(config.presets.nearby.pinPositions["T-02"][2] > 1.3);
+  assert.ok(config.presets.nearby.pinPositions["T-02"][2] < 3.1);
+});
+
+test("a camera-occluded pin stays hidden instead of falling back to a floating distance anchor", () => {
+  const marker = sceneMarkers(config, "MCC-3", workTags, currentTags)[0];
+  const hidden = structuredClone(config);
+  hidden.presets.work.pinPositions[marker.id] = null;
+  assert.equal(markerPosition(validateSceneConfig(hidden), marker, "work"), null);
+  delete hidden.presets.work.pinPositions[marker.id];
+  assert.equal(markerPosition(hidden, marker, "work"), null);
+  delete hidden.presets.work.pinPositions;
+  assert.deepEqual(markerPosition(hidden, marker, "work"), marker.position);
 });

@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { SparkRenderer, SplatMesh } from "@sparkjsdev/spark";
-import { layoutMarkerBoxes, scenePresetForWidth } from "./scene.ts";
+import { layoutMarkerBoxes, markerPosition, scenePresetForWidth } from "./scene.ts";
 
 export function createCardScene(canvas, options) {
   const { config, onFrame, onProgress, onLoaded, onError } = options;
@@ -43,7 +43,9 @@ export function createCardScene(canvas, options) {
       renderer.render(scene, camera);
       const width = canvas.clientWidth, height = canvas.clientHeight;
       const projected = markers.flatMap((marker) => {
-        const world = new THREE.Vector3(...marker.position);
+        const position = markerPosition(config, marker, cameraPreset);
+        if (!position) return [];
+        const world = new THREE.Vector3(...position);
         if (world.clone().applyMatrix4(camera.matrixWorldInverse).z >= -camera.near) return [];
         const p = world.project(camera);
         if (p.x < -1 || p.x > 1 || p.y < -1 || p.y > 1 || p.z < -1 || p.z > 1) return [];
