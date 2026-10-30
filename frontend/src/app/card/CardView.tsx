@@ -1,6 +1,6 @@
 "use client";
 import { useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { HoldButton } from "@/components/HoldButton";
 import { CardSpace } from "@/components/card3d/CardSpace";
 import { useFallDetection } from "@/hooks/useFallDetection";
@@ -9,6 +9,7 @@ import { api } from "@/lib/api";
 import { drawingMatchesTag, fmtRange, fmtTime, WORK_STATUS_LABEL, workWarnings } from "@/lib/format";
 import { EQUIPMENT_STATE_LABEL } from "@/lib/templates";
 import type { Alert, CardResponse, CheckItem, Confirmation, Drawing, Tag, Work } from "@/lib/types";
+import "./card-checks.css";
 
 export function CardView() {
   const sp = useSearchParams();
@@ -231,9 +232,23 @@ function AbnormalNotice({ list }: { list: Alert[] }) {
 function Checklist({ data, device, onChange, readOnly = false }: { data: CardResponse; device: string; onChange: () => void; readOnly?: boolean }) {
   const work = data.work!;
   const [err, setErr] = useState<string | null>(null);
+  const checkList = useRef<HTMLDivElement>(null);
+  const footer = useRef<HTMLDivElement>(null);
   const done = new Map(data.confirmations.map((c) => [c.checkItemId, c]));
   const items = data.tags.flatMap((t) => t.checkItems);
+  const requiredTotal = items.filter((i) => i.required).length;
   const requiredLeft = items.filter((i) => i.required && !done.has(i.id)).length;
+  const requiredDone = requiredTotal - requiredLeft;
+
+  useEffect(() => {
+    const bar = footer.current;
+    if (!bar) return;
+    const reserveSpace = () => checkList.current?.style.setProperty("--card-check-footer-height", `${Math.ceil(bar.getBoundingClientRect().height)}px`);
+    reserveSpace();
+    const observer = new ResizeObserver(reserveSpace);
+    observer.observe(bar, { box: "border-box" });
+    return () => observer.disconnect();
+  }, [readOnly]);
 
   const start = async () => {
     try {
@@ -266,14 +281,18 @@ function Checklist({ data, device, onChange, readOnly = false }: { data: CardRes
       <AbnormalNotice list={data.abnormal} />
       <CardSpace work={work} tags={data.tags} />
 
-      {data.tags.map((t) => (
-        <TagCard key={t.id} tag={t} workId={work.id} done={done} onChange={onChange} readOnly={readOnly} drawings={data.drawings} />
-      ))}
+      <div ref={checkList} className={`space-y-3 ${readOnly ? "" : "card-check-items"}`}>
+        {data.tags.map((t) => (
+          <TagCard key={t.id} tag={t} workId={work.id} done={done} onChange={onChange} readOnly={readOnly} drawings={data.drawings} />
+        ))}
+      </div>
 
-      {!readOnly && <div className="sticky bottom-0 space-y-1 bg-slate-50 pb-2 pt-1">
-        <button className="btn-primary w-full py-4 text-base" disabled={requiredLeft > 0} onClick={start}>
-          {requiredLeft > 0 ? `필수 항목 ${requiredLeft}개 남음` : "확인 완료 · 작업 시작"}
+      {!readOnly && <div ref={footer} className="card-check-footer">
+        <button className="btn-primary card-check-action w-full py-3 text-base" disabled={requiredLeft > 0} onClick={start}>
+          {requiredLeft > 0 ? `필수 확인 ${requiredDone} / ${requiredTotal}` : "확인 완료 · 작업 시작"}
         </button>
+        <progress className="card-check-progress" max={requiredTotal || 1} value={requiredTotal ? requiredDone : 1}
+          aria-label={`필수 확인 ${requiredDone} / ${requiredTotal}`} />
         {err && <p className="text-center text-sm text-red-600">{err}</p>}
       </div>}
     </Shell>
@@ -313,6 +332,8 @@ function TagCard({ tag, workId, done, onChange, readOnly, drawings }: { tag: Tag
 function CheckRow({ item, workId, done, onChange, readOnly }: { item: CheckItem; workId: number; done?: Confirmation; onChange: () => void; readOnly: boolean }) {
   const [value, setValue] = useState("");
   const [photo, setPhoto] = useState<string | null>(null);
+  const photoInput = useRef<HTMLInputElement>(null);
+  const photoNameId = useId();
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -371,10 +392,18 @@ function CheckRow({ item, workId, done, onChange, readOnly }: { item: CheckItem;
         <input className="input" type="number" inputMode="decimal" step="any" placeholder={`측정값${item.unit ? ` (${item.unit})` : ""}`} value={value} onChange={(e) => setValue(e.target.value)} />
       )}
       {item.needs === "photo" && (
-        <input className="input" type="file" accept="image/*" capture="environment" onChange={(e) => setPhoto(e.target.files?.[0]?.name ?? null)} />
+        <div className="space-y-1.5">
+          <input ref={photoInput} hidden type="file" accept="image/*" capture="environment" aria-label={`${item.item} 사진`}
+            onChange={(e) => setPhoto(e.target.files?.[0]?.name ?? null)} />
+          <button type="button" className="btn-ghost w-full py-2.5" onClick={() => photoInput.current?.click()}
+            aria-label={`${item.item} 사진 찍기 · 올리기`} aria-describedby={photo ? photoNameId : undefined}>
+            사진 찍기 · 올리기
+          </button>
+          {photo && <p id={photoNameId} className="card-check-photo-name text-xs text-slate-600" role="status">{photo}</p>}
+        </div>
       )}
       <button
-        className="btn-primary w-full"
+        className="btn-primary card-check-action w-full"
         disabled={busy || (item.needs === "value" && value === "") || (item.needs === "photo" && !photo)}
         onClick={submit}
       >
